@@ -105,4 +105,22 @@ codeunit 99001551 "Subc. WhsePostReceipt Ext"
             IsHandled := true;
         end;
     end;
+
+    [EventSubscriber(ObjectType::Table, Database::"Warehouse Receipt Line", OnBeforeOpenItemTrackingLineForPurchLine, '', false, false)]
+    local procedure "Warehouse Receipt Line_OnBeforeOpenItemTrackingLineForPurchLine"(PurchaseLine: Record "Purchase Line"; SecondSourceQtyArray: array[3] of Decimal; var SkipCallItemTracking: Boolean)
+    var
+        ProdOrderLine: Record "Prod. Order Line";
+        TrackingSpecification: Record "Tracking Specification";
+        ProdOrderLineReserve: Codeunit "Prod. Order Line-Reserve";
+        ItemTrackingLines: Page "Item Tracking Lines";
+    begin
+        if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::LastOperation then
+            if PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then begin
+                ProdOrderLineReserve.InitFromProdOrderLine(TrackingSpecification, ProdOrderLine);
+                ItemTrackingLines.SetSourceSpec(TrackingSpecification, ProdOrderLine."Due Date");
+                ItemTrackingLines.SetSecondSourceQuantity(SecondSourceQtyArray);
+                ItemTrackingLines.RunModal();
+                SkipCallItemTracking := true;
+            end;
+    end;
 }

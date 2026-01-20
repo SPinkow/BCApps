@@ -4,6 +4,7 @@
 // ------------------------------------------------------------------------------------------------
 namespace Microsoft.Manufacturing.Subcontracting;
 
+using Microsoft.Manufacturing.Document;
 using Microsoft.Purchases.Document;
 
 codeunit 99001534 "Subc. Purchase Line Ext"
@@ -67,5 +68,18 @@ codeunit 99001534 "Subc. Purchase Line Ext"
     begin
         if (PurchLine.Type = PurchLine.Type::Item) and (PurchLine."No." <> '') and (PurchLine."Prod. Order No." <> '') and (PurchLine."Operation No." <> '') then
             SubcontractingPriceMgt.GetSubcPriceForPurchLine(PurchLine);
+    end;
+
+    [EventSubscriber(ObjectType::Table, Database::"Purchase Line", OnBeforeOpenItemTrackingLines, '', false, false)]
+    local procedure "Purchase Line_OnBeforeOpenItemTrackingLines"(PurchaseLine: Record "Purchase Line"; var IsHandled: Boolean)
+    var
+        ProdOrderLine: Record "Prod. Order Line";
+    begin
+        if PurchaseLine."Subc. Purchase Line Type" <> "Subc. Purchase Line Type"::LastOperation then
+            exit;
+        if PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then begin
+            ProdOrderLine.OpenItemTrackingLines();
+            IsHandled := true;
+        end;
     end;
 }
