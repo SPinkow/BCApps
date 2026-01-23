@@ -4,8 +4,10 @@
 // ------------------------------------------------------------------------------------------------
 namespace Microsoft.Manufacturing.Subcontracting;
 
+using Microsoft.Inventory.Tracking;
 using Microsoft.Manufacturing.Document;
 using Microsoft.Purchases.Document;
+using Microsoft.Warehouse.Document;
 
 codeunit 99001534 "Subc. Purchase Line Ext"
 {
@@ -74,12 +76,24 @@ codeunit 99001534 "Subc. Purchase Line Ext"
     local procedure "Purchase Line_OnBeforeOpenItemTrackingLines"(PurchaseLine: Record "Purchase Line"; var IsHandled: Boolean)
     var
         ProdOrderLine: Record "Prod. Order Line";
+        TrackingSpecification: Record "Tracking Specification";
+        ProdOrderLineReserve: Codeunit "Prod. Order Line-Reserve";
+        ItemTrackingLines: Page "Item Tracking Lines";
+        SecondSourceQtyArray: array[3] of Decimal;
     begin
         if PurchaseLine."Subc. Purchase Line Type" <> "Subc. Purchase Line Type"::LastOperation then
             exit;
-        if PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then begin
-            ProdOrderLine.OpenItemTrackingLines();
-            IsHandled := true;
-        end;
+        if not PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then
+            exit;
+
+        SecondSourceQtyArray[1] := Database::"Warehouse Receipt Line";
+        SecondSourceQtyArray[2] := PurchaseLine.CalcBaseQtyFromQuantity(PurchaseLine."Qty. to Receive", PurchaseLine.FieldCaption("Qty. Rounding Precision"), PurchaseLine.FieldCaption("Qty. to Receive"), PurchaseLine.FieldCaption("Qty. to Receive (Base)"));
+        SecondSourceQtyArray[3] := 0;
+
+        ProdOrderLineReserve.InitFromProdOrderLine(TrackingSpecification, ProdOrderLine);
+        ItemTrackingLines.SetSourceSpec(TrackingSpecification, ProdOrderLine."Due Date");
+        ItemTrackingLines.SetSecondSourceQuantity(SecondSourceQtyArray);
+        ItemTrackingLines.RunModal();
+        IsHandled := true;
     end;
 }
