@@ -76,11 +76,12 @@ codeunit 99001551 "Subc. WhsePostReceipt Ext"
             IsHandled := true;
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Receipt", OnIsReceiptForSubcontracting, '', false, false)]
-    local procedure "Whse.-Post Receipt_OnIsReceiptForSubcontracting"(var PostedWhseReceiptLine: Record "Posted Whse. Receipt Line"; var ReturnValue: Boolean; var IsHandled: Boolean)
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Receipt", OnCreatePostedRcptLineOnBeforePutAwayProcessing, '', false, false)]
+    local procedure "Whse.-Post Receipt_OnIsReceiptForSubcontracting"(var PostedWhseReceiptLine: Record "Posted Whse. Receipt Line"; var SkipPutAwayProcessing: Boolean)
     begin
-        ReturnValue := PostedWhseReceiptLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::NotLastOperation;
-        IsHandled := true;
+        if SkipPutAwayProcessing then
+            exit;
+        SkipPutAwayProcessing := PostedWhseReceiptLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::NotLastOperation;
     end;
 
     [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Receipt", OnBeforePostWhseJnlLine, '', false, false)]
@@ -97,13 +98,11 @@ codeunit 99001551 "Subc. WhsePostReceipt Ext"
             IsHandled := true;
     end;
 
-    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Receipt", OnIsReceiptIsForSubcontractingNotLastOperation, '', false, false)]
-    local procedure "Whse.-Post Receipt_OnIsReceiptIsForSubcontractingNotLastOperation"(PostedWhseReceiptLine: Record "Posted Whse. Receipt Line"; var ReturnValue: Boolean; var IsHandled: Boolean)
+    [EventSubscriber(ObjectType::Codeunit, Codeunit::"Whse.-Post Receipt", OnBeforeCreatePutAwayLine, '', false, false)]
+    local procedure "Whse.-Post Receipt_OnIsReceiptIsForSubcontractingNotLastOperation"(PostedWhseReceiptLine: Record "Posted Whse. Receipt Line"; var SkipPutAwayCreationForLine: Boolean)
     begin
-        if PostedWhseReceiptLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::NotLastOperation then begin
-            ReturnValue := true;
-            IsHandled := true;
-        end;
+        if PostedWhseReceiptLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::NotLastOperation then
+            SkipPutAwayCreationForLine := true;
     end;
 
     [EventSubscriber(ObjectType::Table, Database::"Warehouse Receipt Line", OnBeforeOpenItemTrackingLineForPurchLine, '', false, false)]
