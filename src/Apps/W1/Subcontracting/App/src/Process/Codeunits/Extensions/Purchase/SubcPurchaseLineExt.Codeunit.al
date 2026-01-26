@@ -4,6 +4,7 @@
 // ------------------------------------------------------------------------------------------------
 namespace Microsoft.Manufacturing.Subcontracting;
 
+using Microsoft.Inventory.Item;
 using Microsoft.Inventory.Tracking;
 using Microsoft.Manufacturing.Document;
 using Microsoft.Purchases.Document;
@@ -79,13 +80,20 @@ codeunit 99001534 "Subc. Purchase Line Ext"
         TrackingSpecification: Record "Tracking Specification";
         ProdOrderLineReserve: Codeunit "Prod. Order Line-Reserve";
         ItemTrackingLines: Page "Item Tracking Lines";
+        NotLastOperationLineErr: Label 'Item tracking lines can only be viewed for subcontracting purchase lines with are connected with a routing line which is the last operation.';
         SecondSourceQtyArray: array[3] of Decimal;
     begin
+        if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::None then
+            exit;
+        CheckItem(PurchaseLine);
+        if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::NotLastOperation then
+            Error(NotLastOperationLineErr);
         if PurchaseLine."Subc. Purchase Line Type" <> "Subc. Purchase Line Type"::LastOperation then
             exit;
-        if not PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then
+        if not PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then begin
+            CheckItem(PurchaseLine);
             exit;
-
+        end;
         SecondSourceQtyArray[1] := Database::"Warehouse Receipt Line";
         SecondSourceQtyArray[2] := PurchaseLine.CalcBaseQtyFromQuantity(PurchaseLine."Qty. to Receive", PurchaseLine.FieldCaption("Qty. Rounding Precision"), PurchaseLine.FieldCaption("Qty. to Receive"), PurchaseLine.FieldCaption("Qty. to Receive (Base)"));
         SecondSourceQtyArray[3] := 0;
@@ -95,5 +103,18 @@ codeunit 99001534 "Subc. Purchase Line Ext"
         ItemTrackingLines.SetSecondSourceQuantity(SecondSourceQtyArray);
         ItemTrackingLines.RunModal();
         IsHandled := true;
+    end;
+
+    local procedure CheckItem(PurchaseLine: Record "Purchase Line")
+    var
+        Item: Record Item;
+        ItemTrackingCode: Record "Item Tracking Code";
+    begin
+        PurchaseLine.TestField(Type, "Purchase Line Type"::Item);
+        PurchaseLine.TestField("No.");
+        Item.SetLoadFields("Item Tracking Code");
+        Item.Get(PurchaseLine."No.");
+        Item.TestField("Item Tracking Code");
+        ItemTrackingCode.Get(Item."Item Tracking Code");
     end;
 }
