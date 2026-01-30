@@ -547,11 +547,6 @@ codeunit 140008 "Subc. Warehouse Library"
             WarehouseActivityHeader.Get(WarehouseActivityLine."Activity Type", WarehouseActivityLine."No.");
     end;
 
-    procedure PostPutAway(WarehouseActivityHeader: Record "Warehouse Activity Header")
-    begin
-        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
-    end;
-
     procedure PostPartialPutAway(var WarehouseActivityHeader: Record "Warehouse Activity Header"; PartialQuantity: Decimal)
     var
         WarehouseActivityLine: Record "Warehouse Activity Line";

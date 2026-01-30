@@ -177,7 +177,7 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
             'Put-away Place line should use default bin from location setup');
 
         // [WHEN] Post Put-away
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Posted Entries: Item ledger entry is created
         SubcWarehouseLibrary.VerifyItemLedgerEntry(Item."No.", Quantity, Location.Code);

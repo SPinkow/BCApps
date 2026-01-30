@@ -192,7 +192,7 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
 
         // [WHEN] Post the put-away
         WarehouseActivityHeader.Get(WarehouseActivityLine."Activity Type", WarehouseActivityLine."No.");
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Quantity Reconciliation: All quantities correct for both operations
         VerifyQuantityReconciliation(ProductionOrder, PurchaseHeader, Quantity);

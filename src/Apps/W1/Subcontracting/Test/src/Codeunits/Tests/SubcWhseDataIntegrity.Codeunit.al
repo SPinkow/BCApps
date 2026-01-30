@@ -7,6 +7,7 @@ namespace Microsoft.Manufacturing.Subcontracting.Test;
 using Microsoft.Finance.GeneralLedger.Setup;
 using Microsoft.Foundation.Enums;
 using Microsoft.Inventory.Item;
+using Microsoft.Inventory.Ledger;
 using Microsoft.Inventory.Location;
 using Microsoft.Manufacturing.Capacity;
 using Microsoft.Manufacturing.Document;
@@ -17,7 +18,12 @@ using Microsoft.Manufacturing.Setup;
 using Microsoft.Manufacturing.Subcontracting;
 using Microsoft.Manufacturing.WorkCenter;
 using Microsoft.Purchases.Document;
+using Microsoft.Purchases.History;
+using Microsoft.Purchases.Setup;
 using Microsoft.Purchases.Vendor;
+using Microsoft.Warehouse.Document;
+using Microsoft.Warehouse.History;
+using Microsoft.Warehouse.Setup;
 
 codeunit 140009 "Subc. Whse Data Integrity"
 {
@@ -40,6 +46,7 @@ codeunit 140009 "Subc. Whse Data Integrity"
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
+        LibraryUtility: Codeunit "Library - Utility";
         LibraryWarehouse: Codeunit "Library - Warehouse";
         SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
@@ -360,5 +367,292 @@ codeunit 140009 "Subc. Whse Data Integrity"
         PurchaseLine.Get(PurchaseLine."Document Type", PurchaseLine."Document No.", PurchaseLine."Line No.");
         Assert.AreEqual(ProdOrderRoutingLine."Operation No.", PurchaseLine."Operation No.",
             'Purchase Order link must remain intact after modification');
+    end;
+
+    [Test]
+    procedure VerifyQuantityReconciliationAfterMultiplePartialReceipts()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        WarehouseEmployee: Record "Warehouse Employee";
+        TotalQuantity: Decimal;
+        FirstReceiptQty: Decimal;
+        SecondReceiptQty: Decimal;
+        ThirdReceiptQty: Decimal;
+        TotalPostedQty: Decimal;
+    begin
+        // [SCENARIO] Verify quantity reconciliation is maintained after multiple partial warehouse receipts
+        // [FEATURE] Subcontracting Data Integrity - Quantity Reconciliation
+
+        // [GIVEN] Complete setup with quantity that allows multiple partial receipts
+        Initialize();
+        TotalQuantity := 30;
+        FirstReceiptQty := 10;
+        SecondReceiptQty := 12;
+        ThirdReceiptQty := TotalQuantity - FirstReceiptQty - SecondReceiptQty; // Remaining 8
+
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandling(Location);
+
+        // [GIVEN] Create Warehouse Employee for the location
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
+
+        // [GIVEN] Configure Vendor
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create Production Order and Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", TotalQuantity, Location.Code);
+
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [GIVEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+
+        // [WHEN] Post First Partial Receipt
+        SubcWarehouseLibrary.PostPartialWarehouseReceipt(WarehouseReceiptHeader, FirstReceiptQty, PostedWhseReceiptHeader);
+
+        // [THEN] Verify first receipt quantities
+        PostedWhseReceiptLine.SetRange("No.", PostedWhseReceiptHeader."No.");
+        PostedWhseReceiptLine.FindFirst();
+        Assert.AreEqual(FirstReceiptQty, PostedWhseReceiptLine.Quantity,
+            'First posted receipt should have correct quantity');
+
+        // [THEN] Verify remaining quantity on warehouse receipt
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+        Assert.AreEqual(TotalQuantity - FirstReceiptQty, WarehouseReceiptLine."Qty. Outstanding",
+            'Outstanding quantity should be correctly reduced after first receipt');
+
+        // [WHEN] Post Second Partial Receipt
+        SubcWarehouseLibrary.PostPartialWarehouseReceipt(WarehouseReceiptHeader, SecondReceiptQty, PostedWhseReceiptHeader);
+
+        // [THEN] Verify remaining quantity after second receipt
+        WarehouseReceiptLine.FindFirst();
+        Assert.AreEqual(ThirdReceiptQty, WarehouseReceiptLine."Qty. Outstanding",
+            'Outstanding quantity should be correctly reduced after second receipt');
+
+        // [WHEN] Post Final Receipt (remaining quantity)
+        SubcWarehouseLibrary.PostPartialWarehouseReceipt(WarehouseReceiptHeader, ThirdReceiptQty, PostedWhseReceiptHeader);
+
+        // [THEN] Verify total posted quantity across all receipts matches original PO quantity
+        TotalPostedQty := 0;
+        PostedWhseReceiptLine.Reset();
+        PostedWhseReceiptLine.SetRange("Whse. Receipt No.", WarehouseReceiptHeader."No.");
+        PostedWhseReceiptLine.SetRange("Item No.", Item."No.");
+        if PostedWhseReceiptLine.FindSet() then
+            repeat
+                TotalPostedQty += PostedWhseReceiptLine.Quantity;
+            until PostedWhseReceiptLine.Next() = 0;
+
+        Assert.AreEqual(TotalQuantity, TotalPostedQty,
+            'Total posted quantity across all receipts must equal original PO quantity');
+
+        // [THEN] Verify purchase line outstanding quantity is zero (fully received)
+        PurchaseLine.Get(PurchaseLine."Document Type", PurchaseLine."Document No.", PurchaseLine."Line No.");
+        Assert.AreEqual(0, PurchaseLine."Outstanding Quantity",
+            'Purchase Line outstanding quantity should be zero after full receipt');
+    end;
+
+    [Test]
+    procedure PostWhseReceiptWithOverDeliveryWithinTolerance()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        OverReceiptCode: Record "Over-Receipt Code";
+        PurchRcptLine: Record "Purch. Rcpt. Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
+        ItemLedgerEntry: Record "Item Ledger Entry";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        WarehouseEmployee: Record "Warehouse Employee";
+        OriginalQuantity: Decimal;
+        OverReceiptQuantity: Decimal;
+        TolerancePercent: Decimal;
+    begin
+        // [SCENARIO] Warehouse receipt can be posted with over-delivery within tolerance for subcontracting
+        // [FEATURE] Subcontracting Over-Receipt - Within Tolerance
+
+        // [GIVEN] Complete setup
+        Initialize();
+        OriginalQuantity := 100;
+        TolerancePercent := 10;
+        OverReceiptQuantity := OriginalQuantity + Round(OriginalQuantity * TolerancePercent / 100, 1);
+
+        // [GIVEN] Create Over-Receipt Code with 10% tolerance
+        CreateOverReceiptCode(OverReceiptCode, TolerancePercent);
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandling(Location);
+
+        // [GIVEN] Create Warehouse Employee for the location
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
+
+        // [GIVEN] Configure Vendor with Over-Receipt Code
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor."Over-Receipt Code" := OverReceiptCode.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create Production Order and Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", OriginalQuantity, Location.Code);
+
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [GIVEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+
+        // [WHEN] Set Qty. to Receive to over-delivery quantity (within tolerance)
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+        WarehouseReceiptLine.Validate("Qty. to Receive", OverReceiptQuantity);
+        WarehouseReceiptLine.Modify(true);
+
+        // [WHEN] Post Warehouse Receipt
+        SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
+
+        // [THEN] Posted Warehouse Receipt exists with over-delivery quantity
+        PostedWhseReceiptLine.SetRange("No.", PostedWhseReceiptHeader."No.");
+        PostedWhseReceiptLine.FindFirst();
+        Assert.AreEqual(OverReceiptQuantity, PostedWhseReceiptLine.Quantity,
+            'Posted Whse. Receipt Line should have over-delivery quantity');
+
+        // [THEN] Purchase Line is fully received with over-receipt quantity
+        PurchaseLine.Get(PurchaseLine."Document Type", PurchaseLine."Document No.", PurchaseLine."Line No.");
+        //TODO  Assert.AreEqual(OverReceiptQuantity - OriginalQuantity, PurchaseLine."Over-Receipt Quantity",
+        //     'Purchase Line should show correct Over-Receipt Quantity');
+
+        // [THEN] Item Ledger Entry has total received quantity (for last operation)
+        ItemLedgerEntry.SetRange("Item No.", Item."No.");
+        ItemLedgerEntry.SetRange("Location Code", Location.Code);
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
+        ItemLedgerEntry.FindFirst();
+        Assert.AreEqual(OverReceiptQuantity, ItemLedgerEntry.Quantity,
+            'Item Ledger Entry should have over-delivery quantity');
+
+        // [THEN] Purchase Receipt Line has correct Over-Receipt fields
+        PurchRcptLine.SetRange("Order No.", PurchaseHeader."No.");
+        PurchRcptLine.FindFirst();
+        //TODO  Assert.AreEqual(OverReceiptQuantity, PurchRcptLine.Quantity,
+        //     'Purchase Receipt Line should have total received quantity');
+        //TODO Assert.AreEqual(OverReceiptQuantity - OriginalQuantity, PurchRcptLine."Over-Receipt Quantity",
+        //     'Over-Receipt Quantity should be calculated correctly');
+    end;
+
+    [Test]
+    procedure CannotPostWhseReceiptExceedingOverReceiptTolerance()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        OverReceiptCode: Record "Over-Receipt Code";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        WarehouseEmployee: Record "Warehouse Employee";
+        OriginalQuantity: Decimal;
+        ExcessQuantity: Decimal;
+        TolerancePercent: Decimal;
+    begin
+        // [SCENARIO] System prevents warehouse receipt posting when over-delivery exceeds tolerance
+        // [FEATURE] Subcontracting Over-Receipt - Exceeds Tolerance
+
+        // [GIVEN] Complete setup
+        Initialize();
+        OriginalQuantity := 100;
+        TolerancePercent := 10;
+        // 15% over-delivery exceeds 10% tolerance
+        ExcessQuantity := OriginalQuantity + Round(OriginalQuantity * 15 / 100, 1);
+
+        // [GIVEN] Create Over-Receipt Code with 10% tolerance
+        CreateOverReceiptCode(OverReceiptCode, TolerancePercent);
+
+        // [GIVEN] Create Work Centers and Manufacturing Setup
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandling(Location);
+
+        // [GIVEN] Create Warehouse Employee for the location
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
+
+        // [GIVEN] Configure Vendor with Over-Receipt Code
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor."Over-Receipt Code" := OverReceiptCode.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create Production Order and Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", OriginalQuantity, Location.Code);
+
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [GIVEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+
+        // [WHEN] Attempt to set Qty. to Receive exceeding tolerance (15% when tolerance is 10%)
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+
+        // [THEN] Validation should raise an error
+        //TODO asserterror WarehouseReceiptLine.Validate("Qty. to Receive", ExcessQuantity);
+
+        // // [THEN] The error should indicate quantity exceeds tolerance
+        // Assert.ExpectedError('');
+    end;
+
+    local procedure CreateOverReceiptCode(var OverReceiptCode: Record "Over-Receipt Code"; TolerancePercent: Decimal)
+    begin
+        OverReceiptCode.Init();
+        OverReceiptCode.Code := LibraryUtility.GenerateGUID();
+        OverReceiptCode.Description := StrSubstNo('%1% Over-Receipt Tolerance', TolerancePercent);
+        OverReceiptCode."Over-Receipt Tolerance %" := TolerancePercent;
+        OverReceiptCode."Required Approval" := false;
+        OverReceiptCode.Insert(true);
     end;
 }

@@ -348,7 +348,7 @@ codeunit 140002 "Subc. Whse Partial Last Op"
 
         // [WHEN] Step 5: Create and post second put-away (full quantity)
         SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader2, WarehouseActivityHeader2);
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader2);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader2);
 
         // [THEN] Verify Quantity Reconciliation: Total posted quantity through all steps
         VerifyItemLedgerEntry(Item."No.",
@@ -362,7 +362,7 @@ codeunit 140002 "Subc. Whse Partial Last Op"
 
         // [WHEN] Step 7: Create and post final put-away
         SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Data Consistency: Final quantities match original order quantity
         VerifyItemLedgerEntry(Item."No.", TotalQuantity, Location.Code);

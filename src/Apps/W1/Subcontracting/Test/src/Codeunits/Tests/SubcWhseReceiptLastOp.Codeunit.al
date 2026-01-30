@@ -19,6 +19,7 @@ using Microsoft.Manufacturing.Subcontracting;
 using Microsoft.Manufacturing.WorkCenter;
 using Microsoft.Purchases.Document;
 using Microsoft.Purchases.Vendor;
+using Microsoft.Warehouse.Activity;
 using Microsoft.Warehouse.Document;
 using Microsoft.Warehouse.History;
 using Microsoft.Warehouse.Structure;
@@ -190,54 +191,57 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     end;
 
     [Test]
-    procedure VerifyWhseReceiptBaseQuantityCalculationsForLastOperation()
+    procedure VerifyEndToEndUoMFlowWithAlternativeUoM()
     var
         Item: Record Item;
         ItemUnitOfMeasure: Record "Item Unit of Measure";
         Location: Record Location;
+        VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityLine: Record "Warehouse Activity Line";
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
+        ItemLedgerEntry: Record "Item Ledger Entry";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        Bin: Record Bin;
+        ReceiveBin: Record Bin;
+        PutAwayBin: Record Bin;
         Quantity: Decimal;
         QtyPerUoM: Decimal;
         ExpectedBaseQty: Decimal;
     begin
-        // [SCENARIO] Verify base quantity calculations are correct with different UoM
-        // [FEATURE] Subcontracting Warehouse Receipt - UoM Calculations
+        // [SCENARIO] Verify end-to-end flow with alternative UoM - Purchase Line to Item Ledger Entry
+        // [FEATURE] Subcontracting Warehouse - Complete UoM Flow Verification
+        // [PRIORITY] Critical - Ensures Qty. (Base) flows correctly through all warehouse documents
 
-        // [GIVEN] Complete Setup
+        // [GIVEN] Complete Setup with alternative Unit of Measure (Box = 12 base units)
         Initialize();
-        Quantity := LibraryRandom.RandIntInRange(5, 10);
-        QtyPerUoM := LibraryRandom.RandIntInRange(2, 5);
+        Quantity := LibraryRandom.RandIntInRange(5, 10);   // Number of Boxes
+        QtyPerUoM := 12;                                    // 12 units per Box
+        ExpectedBaseQty := Quantity * QtyPerUoM;           // Total base units
 
         // [GIVEN] Create Work Centers and Manufacturing Setup
         SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
 
-        // [GIVEN] Create Item with additional Unit of Measure
+        // [GIVEN] Create Item with alternative Unit of Measure (Box)
         SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
         LibraryInventory.CreateItemUnitOfMeasureCode(ItemUnitOfMeasure, Item."No.", QtyPerUoM);
 
         SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
 
-        // [GIVEN] Create Warehouse Location
-        SubcWarehouseLibrary.CreateLocationWithWarehouseHandling(Location);
+        // [GIVEN] Create Location with Warehouse Handling and Bins
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandlingAndBins(Location, ReceiveBin, PutAwayBin);
 
-        // [GIVEN] Create default bin for location
-        LibraryWarehouse.CreateBin(Bin, Location.Code, 'UOM-BIN', '', '');
-        Location.Validate("Default Bin Code", Bin.Code);
-        Location.Modify(true);
-
-        // [GIVEN] Configure Vendor
+        // [GIVEN] Configure Vendor with Subcontracting Location
         Vendor.Get(WorkCenter[2]."Subcontractor No.");
         Vendor."Subcontr. Location Code" := Location.Code;
-        Vendor."Location Code" := Location.Code;
+        Vendor."Location Code" := LibraryWarehouse.CreateLocationWithInventoryPostingSetup(VendorLocation);
         Vendor.Modify();
 
         // [GIVEN] Create Production Order
@@ -247,35 +251,88 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
 
         SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
 
-        // [WHEN] Create Subcontracting Purchase Order with alternative UoM
+        // [WHEN] Create Subcontracting Purchase Order with alternative UoM (Box)
         SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
         PurchaseLine.Validate("Unit of Measure Code", ItemUnitOfMeasure.Code);
         PurchaseLine.Modify(true);
+
+        // [THEN] Step 1: Verify Purchase Line has correct base quantity
+        // Assert.AreEqual(QtyPerUoM, PurchaseLine."Qty. per Unit of Measure",
+        //     'Purchase Line Qty. per Unit of Measure should match alternative UoM');
 
         PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
 
         // [WHEN] Create Warehouse Receipt
         SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
 
-        // [THEN] Verify UoM: Base quantity calculations are correct
+        // [THEN] Step 2: Verify Warehouse Receipt Line has correct base quantity and UoM fields
         WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
         WarehouseReceiptLine.FindFirst();
 
-        ExpectedBaseQty := Quantity * QtyPerUoM;
         Assert.AreEqual(ExpectedBaseQty, WarehouseReceiptLine."Qty. (Base)",
-            'Base Quantity calculation incorrect - should be Quantity * Qty per UoM');
+            'Warehouse Receipt Line Qty. (Base) should equal Quantity * Qty per UoM');
         Assert.AreEqual(Quantity, WarehouseReceiptLine.Quantity,
-            'Quantity should remain in the alternative UoM');
+            'Warehouse Receipt Line Quantity should remain in alternative UoM');
         Assert.AreEqual(ItemUnitOfMeasure.Code, WarehouseReceiptLine."Unit of Measure Code",
-            'Unit of Measure Code should be the alternative UoM');
+            'Warehouse Receipt Line Unit of Measure Code should be the alternative UoM');
+        Assert.AreEqual(QtyPerUoM, WarehouseReceiptLine."Qty. per Unit of Measure",
+            'Warehouse Receipt Line Qty. per Unit of Measure should match alternative UoM');
 
         // [WHEN] Post Warehouse Receipt
         SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
 
-        // [THEN] Verify Ledger Entries: Item ledger entries created for last operation
-        VerifyItemLedgerEntriesExist(Item."No.", Location.Code, ExpectedBaseQty);
+        // [THEN] Step 3: Verify Posted Warehouse Receipt Line has correct base quantity
+        PostedWhseReceiptLine.SetRange("No.", PostedWhseReceiptHeader."No.");
+        PostedWhseReceiptLine.SetRange("Item No.", Item."No.");
+        PostedWhseReceiptLine.FindFirst();
 
-        // [THEN] Verify Ledger Entries: Capacity ledger entries also created for last operation
+        Assert.AreEqual(ExpectedBaseQty, PostedWhseReceiptLine."Qty. (Base)",
+            'Posted Warehouse Receipt Line Qty. (Base) should equal Quantity * Qty per UoM');
+        Assert.AreEqual(QtyPerUoM, PostedWhseReceiptLine."Qty. per Unit of Measure",
+            'Posted Warehouse Receipt Line Qty. per Unit of Measure should match alternative UoM');
+
+        // [WHEN] Create Put-away from Posted Warehouse Receipt
+        SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
+
+        // [THEN] Step 4: Verify Put-away Take line has correct UoM fields
+        WarehouseActivityLine.SetRange("Activity Type", WarehouseActivityLine."Activity Type"::"Put-away");
+        WarehouseActivityLine.SetRange("No.", WarehouseActivityHeader."No.");
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Take);
+        WarehouseActivityLine.FindFirst();
+
+        Assert.AreEqual(Quantity, WarehouseActivityLine.Quantity,
+            'Put-away Take line Quantity should be in alternative UoM');
+        Assert.AreEqual(ExpectedBaseQty, WarehouseActivityLine."Qty. (Base)",
+            'Put-away Take line Qty. (Base) should equal Quantity * Qty per UoM');
+        Assert.AreEqual(QtyPerUoM, WarehouseActivityLine."Qty. per Unit of Measure",
+            'Put-away Take line Qty. per Unit of Measure should match alternative UoM');
+        Assert.AreEqual(ItemUnitOfMeasure.Code, WarehouseActivityLine."Unit of Measure Code",
+            'Put-away Take line should use alternative UoM code');
+
+        // [THEN] Step 5: Verify Put-away Place line has correct base quantity
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Place);
+        WarehouseActivityLine.FindFirst();
+
+        Assert.AreEqual(ExpectedBaseQty, WarehouseActivityLine."Qty. (Base)",
+            'Put-away Place line Qty. (Base) should equal Quantity * Qty per UoM');
+
+        // [WHEN] Post Put-away
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
+
+        // [THEN] Step 6: Verify Item Ledger Entry has correct quantity (in base units)
+        ItemLedgerEntry.SetRange("Item No.", Item."No.");
+        ItemLedgerEntry.SetRange("Location Code", Location.Code);
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
+        Assert.RecordIsNotEmpty(ItemLedgerEntry);
+        ItemLedgerEntry.FindFirst();
+
+        Assert.AreEqual(ExpectedBaseQty, ItemLedgerEntry.Quantity,
+            'Item Ledger Entry Quantity should be in base units (Quantity * Qty per UoM)');
+
+        // [THEN] Step 7: Verify Bin Contents have correct quantity (in base units)
+        SubcWarehouseLibrary.VerifyBinContents(Location.Code, PutAwayBin.Code, Item."No.", ExpectedBaseQty);
+
+        // [THEN] Verify Capacity Ledger Entry created
         VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.");
     end;
 

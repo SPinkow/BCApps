@@ -203,7 +203,7 @@ codeunit 140005 "Subc. Whse Item Tracking"
             'Serial No. should be propagated to Put-away Line');
 
         // [WHEN] Post Put-away
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Posted Entries: Item Ledger Entry contains correct serial number
         ItemLedgerEntry.SetRange("Item No.", Item."No.");
@@ -325,7 +325,7 @@ codeunit 140005 "Subc. Whse Item Tracking"
             'Lot No. should be propagated to Put-away Line');
 
         // [WHEN] Post Put-away
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Posted Entries: All posted entries correctly reflect assigned item tracking
         ItemLedgerEntry.SetRange("Item No.", Item."No.");
@@ -450,7 +450,7 @@ codeunit 140005 "Subc. Whse Item Tracking"
             'Lot No. should be propagated to Put-away Line');
 
         // [WHEN] Post Put-away
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify Posted Entries: Posted entries correctly reflect assigned item tracking
         ItemLedgerEntry.SetRange("Item No.", Item."No.");
@@ -750,7 +750,7 @@ codeunit 140005 "Subc. Whse Item Tracking"
         Assert.AreEqual(LotNo2, WarehouseActivityLine."Lot No.",
             'Second Lot No. should be propagated to Put-away Line');
 
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader2);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader2);
 
         // [THEN] Verify: Item Ledger Entry for second lot unchanged (SecondReceiptQty - ILE created on Whse Receipt)
         // [THEN] Verify: Bin Content for second lot after put-away
@@ -789,7 +789,7 @@ codeunit 140005 "Subc. Whse Item Tracking"
         Assert.AreEqual(LotNo3, WarehouseActivityLine."Lot No.",
             'Third Lot No. should be propagated to Put-away Line');
 
-        SubcWarehouseLibrary.PostPutAway(WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
 
         // [THEN] Verify: Item Ledger Entry for third lot unchanged (ThirdReceiptQty - ILE created on Whse Receipt)
         // [THEN] Verify: Bin Content for third lot after put-away
