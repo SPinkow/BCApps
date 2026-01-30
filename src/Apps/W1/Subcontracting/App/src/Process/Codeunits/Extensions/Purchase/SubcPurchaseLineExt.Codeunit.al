@@ -80,7 +80,7 @@ codeunit 99001534 "Subc. Purchase Line Ext"
         TrackingSpecification: Record "Tracking Specification";
         ProdOrderLineReserve: Codeunit "Prod. Order Line-Reserve";
         ItemTrackingLines: Page "Item Tracking Lines";
-        NotLastOperationLineErr: Label 'Item tracking lines can only be viewed for subcontracting purchase lines with are connected with a routing line which is the last operation.';
+        NotLastOperationLineErr: Label 'Item tracking lines can only be viewed for subcontracting purchase lines which are linked to a routing line which is the last operation.';
         SecondSourceQtyArray: array[3] of Decimal;
     begin
         if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::None then
