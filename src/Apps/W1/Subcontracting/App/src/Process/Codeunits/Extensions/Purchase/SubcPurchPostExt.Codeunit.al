@@ -93,7 +93,6 @@ codeunit 99001535 "Subc. Purch. Post Ext"
     begin
         if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::LastOperation then
             CreateTempWhseSplitSpecificationForLastOperationSubcontracting(PurchaseLine, ItemJnlPostLine, TrackingSpecification, "; var TempWhseTrackingSpecification: Record ");
-
     end;
 
     local procedure CreateTempWhseSplitSpecificationForLastOperationSubcontracting(PurchLine: Record "Purchase Line"; var ItemJnlPostLine: Codeunit "Item Jnl.-Post Line"; var TempHandlingSpecification: Record "Tracking Specification" temporary; var TempWhseSplitSpecification: Record "Tracking Specification" temporary)
