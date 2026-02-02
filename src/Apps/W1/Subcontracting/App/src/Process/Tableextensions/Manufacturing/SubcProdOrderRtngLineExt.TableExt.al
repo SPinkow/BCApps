@@ -47,13 +47,14 @@ tableextension 99001506 "Subc. ProdOrderRtngLine Ext." extends "Prod. Order Rout
         if Status <> "Production Order Status"::Released then
             exit;
 
-        ProdOrderLine.Reset();
+        ProdOrderLine.SetLoadFields(SystemId);
         ProdOrderLine.SetRange(Status, Status);
         ProdOrderLine.SetRange("Prod. Order No.", "Prod. Order No.");
         ProdOrderLine.SetRange("Routing Reference No.", "Routing Reference No.");
         ProdOrderLine.SetRange("Routing No.", "Routing No.");
         if ProdOrderLine.Find('-') then
             repeat
+                PurchLine.SetLoadFields(SystemId);
                 PurchLine.SetCurrentKey(
                   "Document Type", Type, "Prod. Order No.", "Prod. Order Line No.", "Routing No.", "Operation No.");
                 PurchLine.SetRange("Document Type", PurchLine."Document Type"::Order);
@@ -82,13 +83,14 @@ tableextension 99001506 "Subc. ProdOrderRtngLine Ext." extends "Prod. Order Rout
     begin
         if Status <> "Production Order Status"::Released then
             exit;
-        ProdOrderLine.Reset();
+        ProdOrderLine.SetLoadFields(SystemId);
         ProdOrderLine.SetRange(Status, Status);
         ProdOrderLine.SetRange("Prod. Order No.", "Prod. Order No.");
         ProdOrderLine.SetRange("Routing Reference No.", "Routing Reference No.");
         ProdOrderLine.SetRange("Routing No.", "Routing No.");
         if ProdOrderLine.Find('-') then
             repeat
+                PurchLine.SetLoadFields(SystemId);
                 PurchLine.SetCurrentKey(
                   "Document Type", Type, "Prod. Order No.", "Prod. Order Line No.", "Routing No.", "Operation No.");
                 PurchLine.SetRange("Document Type", PurchLine."Document Type"::Order);
@@ -99,6 +101,7 @@ tableextension 99001506 "Subc. ProdOrderRtngLine Ext." extends "Prod. Order Rout
                     PrevProdOrderRoutingLine := Rec;
                     PrevProdOrderRoutingLine.SetRecFilter();
                     PrevProdOrderRoutingLine.SetFilter("Operation No.", "Previous Operation No.");
+                    PrevProdOrderRoutingLine.SetLoadFields(SystemId);
                     if PrevProdOrderRoutingLine.FindSet() then
                         repeat
                             PurchLine.SetRange("Operation No.", PrevProdOrderRoutingLine."Operation No.");
