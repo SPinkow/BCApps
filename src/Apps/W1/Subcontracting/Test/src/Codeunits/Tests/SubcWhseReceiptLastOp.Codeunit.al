@@ -40,8 +40,6 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
         LibraryInventory: Codeunit "Library - Inventory";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
-        LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
@@ -187,7 +185,7 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         VerifyItemLedgerEntriesExist(Item."No.", Location.Code, Quantity);
 
         // [THEN] Verify Ledger Entries: Capacity ledger entries also created for last operation
-        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.");
+        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.", Quantity);
     end;
 
     [Test]
@@ -333,7 +331,7 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         SubcWarehouseLibrary.VerifyBinContents(Location.Code, PutAwayBin.Code, Item."No.", ExpectedBaseQty);
 
         // [THEN] Verify Capacity Ledger Entry created
-        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.");
+        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.", Quantity);
     end;
 
     local procedure VerifyItemLedgerEntriesExist(ItemNo: Code[20]; LocationCode: Code[10]; ExpectedQuantity: Decimal)
@@ -344,23 +342,25 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         ItemLedgerEntry.SetRange("Item No.", ItemNo);
         ItemLedgerEntry.SetRange("Location Code", LocationCode);
         ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
-        Assert.AreEqual(1, ItemLedgerEntry.Count(),
-            'Item ledger entries should be created for last operation');
-
+        Assert.RecordCount(ItemLedgerEntry, 1);
         ItemLedgerEntry.FindFirst();
-        Assert.AreEqual(ExpectedQuantity, ItemLedgerEntry.Quantity,
-            'Item ledger entry quantity should match posted quantity');
+        Assert.AreEqual(ExpectedQuantity, ItemLedgerEntry.Quantity, 'Item Ledger Entry Quantity mismatch');
     end;
 
-    local procedure VerifyCapacityLedgerEntriesExist(ProdOrderNo: Code[20]; WorkCenterNo: Code[20])
+    local procedure VerifyCapacityLedgerEntriesExist(ProdOrderNo: Code[20]; WorkCenterNo: Code[20]; ExpectedOutputQuantity: Decimal)
     var
         CapacityLedgerEntry: Record "Capacity Ledger Entry";
     begin
         // Verify that capacity ledger entries were created for the last operation
         CapacityLedgerEntry.SetRange("Order No.", ProdOrderNo);
         CapacityLedgerEntry.SetRange("Work Center No.", WorkCenterNo);
-        Assert.AreEqual(1, CapacityLedgerEntry.Count(),
-            'Capacity ledger entries should be created for last operation');
+        Assert.RecordCount(CapacityLedgerEntry, 1);
+
+        if ExpectedOutputQuantity <> 0 then begin
+            CapacityLedgerEntry.FindFirst();
+            Assert.AreEqual(ExpectedOutputQuantity, CapacityLedgerEntry."Output Quantity" / CapacityLedgerEntry."Qty. per Unit of Measure",
+                'Capacity Ledger Entry should have correct output quantity');
+        end;
     end;
 
 }

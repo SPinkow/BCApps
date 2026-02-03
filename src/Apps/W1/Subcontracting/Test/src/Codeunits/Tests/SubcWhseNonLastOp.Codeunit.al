@@ -10,6 +10,7 @@ using Microsoft.Foundation.Enums;
 using Microsoft.Inventory.Item;
 using Microsoft.Inventory.Ledger;
 using Microsoft.Inventory.Location;
+using Microsoft.Inventory.Tracking;
 using Microsoft.Manufacturing.Capacity;
 using Microsoft.Manufacturing.Document;
 using Microsoft.Manufacturing.MachineCenter;
@@ -43,9 +44,6 @@ codeunit 140003 "Subc. Whse Non-Last Op."
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
-        LibraryInventory: Codeunit "Library - Inventory";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
-        LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
@@ -55,10 +53,19 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
         IsInitialized: Boolean;
-        PutAwayPreventedErr: Label 'Put-away cannot be created for non-last operation';
+        HandlingSerialNo: Code[50];
+        HandlingLotNo: Code[50];
+        HandlingQty: Decimal;
+        HandlingMode: Option Verify,Insert;
+        HandlingSourceType: Integer;
 
     local procedure Initialize()
     begin
+        HandlingSerialNo := '';
+        HandlingLotNo := '';
+        HandlingQty := 0;
+        HandlingMode := HandlingMode::Verify;
+        HandlingSourceType := 0;
         LibraryTestInitialize.OnTestInitialize(Codeunit::"Subc. Whse Non-Last Op.");
         LibrarySetupStorage.Restore();
 
@@ -162,9 +169,10 @@ codeunit 140003 "Subc. Whse Non-Last Op."
             WarehouseReceiptLine."Subc. Purchase Line Type",
             'Warehouse Receipt Line should be marked as Not Last Operation');
 
-        // [THEN] Verify UoM: Base quantity calculations using Qty. (Base) = Quantity * Qty. per Unit of Measure
-        Assert.AreEqual(WarehouseReceiptLine.Quantity * WarehouseReceiptLine."Qty. per Unit of Measure", WarehouseReceiptLine."Qty. (Base)",
-            'Qty. (Base) should equal Quantity * Qty. per Unit of Measure');
+        // [THEN] Verify NotLastOperation has zero base quantities (no inventory movement)
+        // CRITICAL: For NotLastOperation, base quantities should be zero as there is no physical inventory movement
+        Assert.AreEqual(0, WarehouseReceiptLine."Qty. (Base)", 'NotLastOperation should have zero Qty. (Base)');
+        Assert.AreEqual(0, WarehouseReceiptLine."Qty. per Unit of Measure", 'NotLastOperation should have zero Qty. per UoM');
 
         // [WHEN] Post Warehouse Receipt
         SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
@@ -181,13 +189,16 @@ codeunit 140003 "Subc. Whse Non-Last Op."
 
         Assert.AreEqual(Quantity, PostedWhseReceiptLine.Quantity,
             'Posted warehouse receipt line should have correct quantity');
+        Assert.AreEqual(0, PostedWhseReceiptLine."Qty. (Base)",
+            'Posted warehouse receipt line for NotLastOperation should have zero Qty. (Base)');
 
+        //Test Base Quantity for NotLastOperation is zero
         // [THEN] Verify Quantity Reconciliation: Quantities reconciled between PO and posted receipt
         Assert.AreEqual(PurchaseLine.Quantity, PostedWhseReceiptLine.Quantity,
             'Posted receipt quantity should match purchase order quantity');
 
-        // [THEN] Verify Ledger Entries: Capacity ledger entries created for non-last operation
-        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[1]."No.");
+        // [THEN] Verify Ledger Entries: Capacity ledger entries created for non-last operation with zero output
+        VerifyCapacityLedgerEntriesOutputQuantity(ProductionOrder."No.", WorkCenter[1]."No.", Quantity);
 
         // [THEN] Verify Ledger Entries: Item ledger entries NOT created for non-last operation
         VerifyItemLedgerEntriesDoNotExist(Item."No.", Location.Code);
@@ -301,9 +312,7 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         PurchaseLine: Record "Purchase Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         WarehouseActivityHeader: Record "Warehouse Activity Header";
-        WarehouseActivityLine: Record "Warehouse Activity Line";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         Bin: Record Bin;
@@ -461,8 +470,22 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         // Verify that capacity ledger entries were created for the production order and work center
         CapacityLedgerEntry.SetRange("Order No.", ProdOrderNo);
         CapacityLedgerEntry.SetRange("Work Center No.", WorkCenterNo);
-        Assert.AreEqual(1.0, CapacityLedgerEntry.Count(),
-              'Capacity ledger entries should be created for non-last operation');
+        Assert.RecordCount(CapacityLedgerEntry, 1);
+    end;
+
+    local procedure VerifyCapacityLedgerEntriesOutputQuantity(ProdOrderNo: Code[20]; WorkCenterNo: Code[20]; ExpectedOutputQuantity: Decimal)
+    var
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+    begin
+        // Verify that capacity ledger entries were created for the production order and work center
+        CapacityLedgerEntry.SetRange("Order No.", ProdOrderNo);
+        CapacityLedgerEntry.SetRange("Work Center No.", WorkCenterNo);
+        Assert.RecordIsNotEmpty(CapacityLedgerEntry);
+
+        // Verify the output quantity matches the expected value
+        CapacityLedgerEntry.FindFirst();
+        Assert.AreEqual(ExpectedOutputQuantity, CapacityLedgerEntry."Output Quantity" / CapacityLedgerEntry."Qty. per Unit of Measure",
+            'Capacity Ledger Entry should have correct output quantity');
     end;
 
     local procedure VerifyItemLedgerEntriesDoNotExist(ItemNo: Code[20]; LocationCode: Code[10])
@@ -474,5 +497,194 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         ItemLedgerEntry.SetRange("Location Code", LocationCode);
         ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
         Assert.RecordIsEmpty(ItemLedgerEntry, CompanyName);
+    end;
+
+    [Test]
+    procedure ItemTrackingNotAllowedForNotLastOperationPurchaseLine()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        PurchaseOrderPage: TestPage "Purchase Order";
+        Quantity: Decimal;
+    begin
+        // [SCENARIO] Item tracking is not available for non-last operation purchase lines
+        // [FEATURE] Subcontracting Item Tracking - Error when opening item tracking for non-last operation
+
+        // [GIVEN] Complete Manufacturing Setup
+        Initialize();
+        Quantity := LibraryRandom.RandIntInRange(5, 10);
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Lot-tracked Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateLotTrackedItemForProductionWithSetup(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link for FIRST operation (non-last)
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[1]."No.");
+
+        // [GIVEN] Create simple Location without Warehouse Handling (so item tracking can be opened directly from purchase line)
+        LibraryWarehouse.CreateLocationWithInventoryPostingSetup(Location);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[1]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order for NON-LAST operation (WorkCenter[1])
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[1]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [THEN] Verify: Purchase Line is marked as NotLastOperation
+        Assert.AreEqual("Subc. Purchase Line Type"::NotLastOperation, PurchaseLine."Subc. Purchase Line Type",
+            'Purchase Line should be marked as NotLastOperation');
+
+        // [THEN] Verify: Base quantities are zero for non-last operation (no physical inventory movement)
+        Assert.AreEqual(0, PurchaseLine."Quantity (Base)",
+            'NotLastOperation Purchase Line should have zero Quantity (Base)');
+
+        // [WHEN] Try to open Item Tracking Lines from Purchase Order Page
+        // [THEN] An error should be raised because item tracking is not allowed for non-last operations
+        PurchaseOrderPage.OpenEdit();
+        PurchaseOrderPage.GoToRecord(PurchaseHeader);
+        PurchaseOrderPage.PurchLines.GoToRecord(PurchaseLine);
+        asserterror PurchaseOrderPage.PurchLines."Item Tracking Lines".Invoke();
+
+        // [THEN] Verify error message indicates item tracking is not available for non-last operation
+        Assert.ExpectedError('You cannot define item tracking on this line because it is linked to production order');
+    end;
+
+    [Test]
+    procedure ItemTrackingNotAllowedForNotLastOperationWarehouseReceiptLine()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WarehouseEmployee: Record "Warehouse Employee";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
+        Quantity: Decimal;
+    begin
+        // [SCENARIO] Item tracking is not available for non-last operation warehouse receipt lines
+        // [FEATURE] Subcontracting Item Tracking - Error when opening item tracking for non-last operation from Warehouse Receipt
+
+        // [GIVEN] Complete Manufacturing Setup
+        Initialize();
+        Quantity := LibraryRandom.RandIntInRange(5, 10);
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Lot-tracked Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateLotTrackedItemForProductionWithSetup(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link for FIRST operation (non-last)
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[1]."No.");
+
+        // [GIVEN] Create Location with Warehouse Handling (Require Receive)
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandling(Location);
+
+        // [GIVEN] Create Warehouse Employee for Location
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[1]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order for NON-LAST operation (WorkCenter[1])
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[1]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [WHEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+
+        // [THEN] Verify: Warehouse Receipt Line is marked as NotLastOperation
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+        Assert.AreEqual("Subc. Purchase Line Type"::NotLastOperation, WarehouseReceiptLine."Subc. Purchase Line Type",
+            'Warehouse Receipt Line should be marked as NotLastOperation');
+
+        // [THEN] Verify: Base quantities are zero for non-last operation
+        Assert.AreEqual(0, WarehouseReceiptLine."Qty. (Base)",
+            'NotLastOperation Warehouse Receipt Line should have zero Qty. (Base)');
+
+        // [WHEN] Try to open Item Tracking Lines from Warehouse Receipt Page
+        // [THEN] An error should be raised because item tracking is not allowed for non-last operations
+        WarehouseReceiptPage.OpenEdit();
+        WarehouseReceiptPage.GoToRecord(WarehouseReceiptHeader);
+        WarehouseReceiptPage.WhseReceiptLines.GoToRecord(WarehouseReceiptLine);
+        asserterror WarehouseReceiptPage.WhseReceiptLines.ItemTrackingLines.Invoke();
+
+        // [THEN] Verify error message indicates item tracking is not available for non-last operation
+        Assert.ExpectedError('Item tracking lines can only be viewed for subcontracting purchase lines which are linked to a routing line which is the last operation.');
+    end;
+
+    [ModalPageHandler]
+    procedure ItemTrackingLinesPageHandler(var ItemTrackingLines: TestPage "Item Tracking Lines")
+    var
+        ReservationEntry: Record "Reservation Entry";
+    begin
+        case HandlingMode of
+            HandlingMode::Verify:
+                begin
+                    ItemTrackingLines.First();
+                    if HandlingSerialNo <> '' then
+                        Assert.AreEqual(HandlingSerialNo, Format(ItemTrackingLines."Serial No.".Value), 'Serial No. mismatch');
+                    if HandlingLotNo <> '' then
+                        Assert.AreEqual(HandlingLotNo, Format(ItemTrackingLines."Lot No.".Value), 'Lot No. mismatch');
+
+                    Assert.AreEqual(HandlingQty, ItemTrackingLines."Quantity (Base)".AsDecimal(), 'Quantity mismatch');
+
+                    if HandlingSourceType <> 0 then begin
+                        ReservationEntry.SetRange("Serial No.", Format(ItemTrackingLines."Serial No.".Value));
+                        ReservationEntry.SetRange("Lot No.", Format(ItemTrackingLines."Lot No.".Value));
+                        ReservationEntry.FindFirst();
+                        Assert.AreEqual(HandlingSourceType, ReservationEntry."Source Type",
+                            'Reservation Entry Source Type should be Prod. Order Line');
+                    end;
+                end;
+            HandlingMode::Insert:
+                begin
+                    ItemTrackingLines.New();
+                    if HandlingSerialNo <> '' then
+                        ItemTrackingLines."Serial No.".SetValue(HandlingSerialNo);
+                    if HandlingLotNo <> '' then
+                        ItemTrackingLines."Lot No.".SetValue(HandlingLotNo);
+
+                    ItemTrackingLines."Quantity (Base)".SetValue(HandlingQty);
+                end;
+        end;
+        ItemTrackingLines.OK().Invoke();
     end;
 }

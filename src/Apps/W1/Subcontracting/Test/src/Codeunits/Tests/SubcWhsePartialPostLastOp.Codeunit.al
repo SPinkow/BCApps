@@ -6,9 +6,11 @@ namespace Microsoft.Manufacturing.Subcontracting.Test;
 
 using Microsoft.Finance.GeneralLedger.Ledger;
 using Microsoft.Finance.GeneralLedger.Setup;
+using Microsoft.Foundation.NoSeries;
 using Microsoft.Inventory.Item;
 using Microsoft.Inventory.Ledger;
 using Microsoft.Inventory.Location;
+using Microsoft.Inventory.Tracking;
 using Microsoft.Manufacturing.Capacity;
 using Microsoft.Manufacturing.Document;
 using Microsoft.Manufacturing.MachineCenter;
@@ -22,6 +24,7 @@ using Microsoft.Purchases.Vendor;
 using Microsoft.Warehouse.Activity;
 using Microsoft.Warehouse.Document;
 using Microsoft.Warehouse.History;
+using Microsoft.Warehouse.Setup;
 using Microsoft.Warehouse.Structure;
 
 codeunit 140002 "Subc. Whse Partial Last Op"
@@ -39,9 +42,6 @@ codeunit 140002 "Subc. Whse Partial Last Op"
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
-        LibraryInventory: Codeunit "Library - Inventory";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
-        LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
@@ -51,9 +51,19 @@ codeunit 140002 "Subc. Whse Partial Last Op"
         SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
         IsInitialized: Boolean;
+        HandlingSerialNo: Code[50];
+        HandlingLotNo: Code[50];
+        HandlingQty: Decimal;
+        HandlingMode: Option Verify,Insert;
+        HandlingSourceType: Integer;
 
     local procedure Initialize()
     begin
+        HandlingSerialNo := '';
+        HandlingLotNo := '';
+        HandlingQty := 0;
+        HandlingMode := HandlingMode::Verify;
+        HandlingSourceType := 0;
         LibraryTestInitialize.OnTestInitialize(Codeunit::"Subc. Whse Partial Last Op");
         LibrarySetupStorage.Restore();
 
@@ -149,10 +159,18 @@ codeunit 140002 "Subc. Whse Partial Last Op"
         // [THEN] Verify Quantity Reconciliation: Remaining quantity is correct on warehouse receipt
         WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
         WarehouseReceiptLine.FindFirst();
-        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
-        WarehouseReceiptLine.FindFirst();
         Assert.AreEqual(Quantity - PartialQuantity, WarehouseReceiptLine."Qty. Outstanding",
             'Warehouse receipt line should have correct outstanding quantity after partial posting');
+
+        // [THEN] Verify base quantity is correctly calculated from quantity and UoM
+        Assert.AreEqual(Quantity * WarehouseReceiptLine."Qty. per Unit of Measure",
+            WarehouseReceiptLine."Qty. (Base)",
+            'Qty. (Base) should equal Quantity * Qty. per Unit of Measure');
+
+        // [THEN] Verify base quantity outstanding is correctly calculated after partial posting
+        Assert.AreEqual((Quantity - PartialQuantity) * WarehouseReceiptLine."Qty. per Unit of Measure",
+            WarehouseReceiptLine."Qty. Outstanding (Base)",
+            'Qty. Outstanding (Base) should be correctly calculated after partial posting');
     end;
 
     [Test]
@@ -373,6 +391,158 @@ codeunit 140002 "Subc. Whse Partial Last Op"
         VerifyUoMBaseQuantityCalculations(Item."No.", TotalQuantity, Location.Code);
     end;
 
+    [Test]
+    [HandlerFunctions('ItemTrackingLinesPageHandler')]
+    procedure PartialLotPostingWithItemTrackingAndPutAwayRecreation()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        WarehouseEmployee: Record "Warehouse Employee";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        ReceiveBin: Record Bin;
+        PutAwayBin: Record Bin;
+        NoSeriesCodeunit: Codeunit "No. Series";
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
+        TotalQuantity: Decimal;
+        PartialQtyLot1: Decimal;
+        PartialQtyLot2: Decimal;
+        PartialQtyToReceive: Decimal;
+        LotNo1: Code[50];
+        LotNo2: Code[50];
+        SingleLotNo: Code[50];
+    begin
+        // [SCENARIO] Comprehensive item tracking test: partial lot posting with put-away recreation and quantity matching validation
+        // [FEATURE] Subcontracting Item Tracking - Multiple lots with partial posting, put-away deletion/recreation, and quantity validation
+
+        // [GIVEN] Complete Manufacturing Setup
+        Initialize();
+        TotalQuantity := LibraryRandom.RandIntInRange(30, 60);
+        PartialQtyLot1 := Round(TotalQuantity * 0.3, 1);
+        PartialQtyLot2 := Round(TotalQuantity * 0.3, 1);
+        PartialQtyToReceive := Round(TotalQuantity * 0.4, 1);
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Lot-tracked Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateLotTrackedItemForProductionWithSetup(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+
+        // [GIVEN] Create Location with Warehouse Handling and Bins
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandlingAndBins(Location, ReceiveBin, PutAwayBin);
+
+        // [GIVEN] Create Warehouse Employee for Location
+        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := Location.Code;
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", TotalQuantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [WHEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+
+        // [GIVEN] Generate lot numbers for multiple lot tracking
+        LotNo1 := NoSeriesCodeunit.GetNextNo(Item."Lot Nos.");
+        LotNo2 := NoSeriesCodeunit.GetNextNo(Item."Lot Nos.");
+
+        // [WHEN] Insert first Lot Number with partial quantity
+        HandlingMode := HandlingMode::Insert;
+        HandlingLotNo := LotNo1;
+        HandlingQty := PartialQtyLot1;
+
+        WarehouseReceiptPage.OpenEdit();
+        WarehouseReceiptPage.GoToRecord(WarehouseReceiptHeader);
+        WarehouseReceiptPage.WhseReceiptLines.GoToRecord(WarehouseReceiptLine);
+        WarehouseReceiptPage.WhseReceiptLines.ItemTrackingLines.Invoke();
+        WarehouseReceiptPage.Close();
+
+        // [WHEN] Insert second Lot Number with partial quantity
+        HandlingLotNo := LotNo2;
+        HandlingQty := PartialQtyLot2;
+
+        WarehouseReceiptPage.OpenEdit();
+        WarehouseReceiptPage.GoToRecord(WarehouseReceiptHeader);
+        WarehouseReceiptPage.WhseReceiptLines.GoToRecord(WarehouseReceiptLine);
+        WarehouseReceiptPage.WhseReceiptLines.ItemTrackingLines.Invoke();
+        WarehouseReceiptPage.Close();
+
+        // [WHEN] Post partial warehouse receipt with both lots
+        SubcWarehouseLibrary.PostPartialWarehouseReceipt(WarehouseReceiptHeader, PartialQtyLot1 + PartialQtyLot2, PostedWhseReceiptHeader);
+
+        // [THEN] Verify: Posted warehouse receipt has correct partial quantity
+        VerifyPostedWhseReceiptQuantity(PostedWhseReceiptHeader, Item."No.", PartialQtyLot1 + PartialQtyLot2);
+
+        // [WHEN] Create Put-away from Posted Warehouse Receipt
+        SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
+
+        // [THEN] Verify: Put-away lines exist with correct lot numbers
+        WarehouseActivityLine.SetRange("Activity Type", WarehouseActivityHeader.Type);
+        WarehouseActivityLine.SetRange("No.", WarehouseActivityHeader."No.");
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Place);
+        Assert.AreEqual(2, WarehouseActivityLine.Count(), 'Should have 2 Place lines for 2 lots');
+
+        VerifyWarehouseActivityLineForLot(WarehouseActivityHeader, LotNo1, PartialQtyLot1);
+        VerifyWarehouseActivityLineForLot(WarehouseActivityHeader, LotNo2, PartialQtyLot2);
+
+        // [WHEN] Delete the Put-away to test recreation functionality
+        WarehouseActivityHeader.Delete(true);
+
+        // [WHEN] Recreate Put-away from Posted Warehouse Receipt
+        SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
+
+        // [THEN] Verify: Recreated Put-away has same lot tracking information
+        WarehouseActivityLine.SetRange("Activity Type", WarehouseActivityHeader.Type);
+        WarehouseActivityLine.SetRange("No.", WarehouseActivityHeader."No.");
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Place);
+        Assert.AreEqual(2, WarehouseActivityLine.Count(), 'Recreated Put-away should have 2 Place lines for 2 lots');
+
+        VerifyWarehouseActivityLineForLot(WarehouseActivityHeader, LotNo1, PartialQtyLot1);
+        VerifyWarehouseActivityLineForLot(WarehouseActivityHeader, LotNo2, PartialQtyLot2);
+
+        // [THEN] Verify: Remaining quantity on Warehouse Receipt is correct
+        WarehouseReceiptHeader.Find();
+        WarehouseReceiptLine.SetRange("No.", WarehouseReceiptHeader."No.");
+        WarehouseReceiptLine.FindFirst();
+        Assert.AreEqual(TotalQuantity - PartialQtyLot1 - PartialQtyLot2, WarehouseReceiptLine."Qty. Outstanding",
+            'Remaining quantity on Warehouse Receipt Line should be correct');
+
+        // [WHEN] Post the recreated Put-away
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
+
+        // [THEN] Verify: Bin contents are correct for both lots
+        VerifyBinContentsForLot(Location.Code, PutAwayBin.Code, Item."No.", LotNo1, PartialQtyLot1);
+        VerifyBinContentsForLot(Location.Code, PutAwayBin.Code, Item."No.", LotNo2, PartialQtyLot2);
+    end;
+
     local procedure VerifyItemLedgerEntry(ItemNo: Code[20]; ExpectedQuantity: Decimal; LocationCode: Code[10])
     var
         ItemLedgerEntry: Record "Item Ledger Entry";
@@ -415,6 +585,50 @@ codeunit 140002 "Subc. Whse Partial Last Op"
             'Bin contents should show correct quantity after put-away posting');
     end;
 
+    local procedure VerifyUoMBaseQuantityCalculations(ItemNo: Code[20]; ExpectedQuantity: Decimal; LocationCode: Code[10])
+    var
+        ItemLedgerEntry: Record "Item Ledger Entry";
+    begin
+        ItemLedgerEntry.SetRange("Item No.", ItemNo);
+        ItemLedgerEntry.SetRange("Location Code", LocationCode);
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
+        Assert.RecordIsNotEmpty(ItemLedgerEntry);
+
+        ItemLedgerEntry.CalcSums(Quantity);
+        Assert.AreEqual(ExpectedQuantity, ItemLedgerEntry.Quantity,
+            'UoM base quantity calculations should be correct across all documents');
+    end;
+
+
+    local procedure VerifyWarehouseActivityLineForLot(WarehouseActivityHeader: Record "Warehouse Activity Header"; LotNo: Code[50]; ExpectedQuantity: Decimal)
+    var
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+    begin
+        WarehouseActivityLine.SetRange("Activity Type", WarehouseActivityHeader.Type);
+        WarehouseActivityLine.SetRange("No.", WarehouseActivityHeader."No.");
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Place);
+        WarehouseActivityLine.SetRange("Lot No.", LotNo);
+        Assert.RecordIsNotEmpty(WarehouseActivityLine);
+
+        WarehouseActivityLine.FindFirst();
+        Assert.AreEqual(ExpectedQuantity, WarehouseActivityLine.Quantity,
+            'Warehouse Activity Line should have correct quantity for lot ' + LotNo);
+    end;
+
+    local procedure VerifyReservationEntryQuantityForLot(ItemNo: Code[20]; LotNo: Code[50]; ExpectedQuantity: Decimal)
+    var
+        ReservationEntry: Record "Reservation Entry";
+    begin
+        ReservationEntry.SetRange("Item No.", ItemNo);
+        ReservationEntry.SetRange("Lot No.", LotNo);
+        ReservationEntry.SetFilter("Quantity (Base)", '<>0');
+        Assert.RecordIsNotEmpty(ReservationEntry);
+
+        ReservationEntry.CalcSums("Quantity (Base)");
+        Assert.AreEqual(ExpectedQuantity, Abs(ReservationEntry."Quantity (Base)"),
+            'Reservation Entry should have correct quantity for lot ' + LotNo);
+    end;
+
     local procedure VerifyPostedWhseReceiptQuantity(var PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header"; ItemNo: Code[20]; ExpectedQuantity: Decimal)
     var
         PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
@@ -428,17 +642,72 @@ codeunit 140002 "Subc. Whse Partial Last Op"
             'Posted warehouse receipt line should have correct quantity');
     end;
 
-    local procedure VerifyUoMBaseQuantityCalculations(ItemNo: Code[20]; ExpectedQuantity: Decimal; LocationCode: Code[10])
+    local procedure VerifyItemLedgerEntryForLot(ItemNo: Code[20]; LotNo: Code[50]; ExpectedQuantity: Decimal; LocationCode: Code[10])
     var
         ItemLedgerEntry: Record "Item Ledger Entry";
     begin
         ItemLedgerEntry.SetRange("Item No.", ItemNo);
+        ItemLedgerEntry.SetRange("Lot No.", LotNo);
         ItemLedgerEntry.SetRange("Location Code", LocationCode);
         ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
         Assert.RecordIsNotEmpty(ItemLedgerEntry);
 
         ItemLedgerEntry.CalcSums(Quantity);
         Assert.AreEqual(ExpectedQuantity, ItemLedgerEntry.Quantity,
-            'UoM base quantity calculations should be correct across all documents');
+            'Item Ledger Entry should have correct quantity for lot ' + LotNo);
+    end;
+
+    local procedure VerifyBinContentsForLot(LocationCode: Code[10]; BinCode: Code[20]; ItemNo: Code[20]; LotNo: Code[50]; ExpectedQuantity: Decimal)
+    var
+        BinContent: Record "Bin Content";
+    begin
+        BinContent.SetRange("Location Code", LocationCode);
+        BinContent.SetRange("Bin Code", BinCode);
+        BinContent.SetRange("Item No.", ItemNo);
+        BinContent.SetRange("Lot No. Filter", LotNo);
+        Assert.RecordIsNotEmpty(BinContent);
+
+        BinContent.FindFirst();
+        BinContent.CalcFields(Quantity);
+        Assert.AreEqual(ExpectedQuantity, BinContent.Quantity,
+            'Bin contents should show correct quantity for lot ' + LotNo + ' after put-away posting');
+    end;
+
+    [ModalPageHandler]
+    procedure ItemTrackingLinesPageHandler(var ItemTrackingLines: TestPage "Item Tracking Lines")
+    var
+        ReservationEntry: Record "Reservation Entry";
+    begin
+        case HandlingMode of
+            HandlingMode::Verify:
+                begin
+                    ItemTrackingLines.First();
+                    if HandlingSerialNo <> '' then
+                        Assert.AreEqual(HandlingSerialNo, Format(ItemTrackingLines."Serial No.".Value), 'Serial No. mismatch');
+                    if HandlingLotNo <> '' then
+                        Assert.AreEqual(HandlingLotNo, Format(ItemTrackingLines."Lot No.".Value), 'Lot No. mismatch');
+
+                    Assert.AreEqual(HandlingQty, ItemTrackingLines."Quantity (Base)".AsDecimal(), 'Quantity mismatch');
+
+                    if HandlingSourceType <> 0 then begin
+                        ReservationEntry.SetRange("Serial No.", Format(ItemTrackingLines."Serial No.".Value));
+                        ReservationEntry.SetRange("Lot No.", Format(ItemTrackingLines."Lot No.".Value));
+                        ReservationEntry.FindFirst();
+                        Assert.AreEqual(HandlingSourceType, ReservationEntry."Source Type",
+                            'Reservation Entry Source Type should be Prod. Order Line');
+                    end;
+                end;
+            HandlingMode::Insert:
+                begin
+                    ItemTrackingLines.New();
+                    if HandlingSerialNo <> '' then
+                        ItemTrackingLines."Serial No.".SetValue(HandlingSerialNo);
+                    if HandlingLotNo <> '' then
+                        ItemTrackingLines."Lot No.".SetValue(HandlingLotNo);
+
+                    ItemTrackingLines."Quantity (Base)".SetValue(HandlingQty);
+                end;
+        end;
+        ItemTrackingLines.OK().Invoke();
     end;
 }

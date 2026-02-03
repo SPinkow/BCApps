@@ -24,6 +24,7 @@ using Microsoft.Purchases.Vendor;
 using Microsoft.Warehouse.Activity;
 using Microsoft.Warehouse.Document;
 using Microsoft.Warehouse.History;
+using Microsoft.Warehouse.Request;
 using Microsoft.Warehouse.Setup;
 using Microsoft.Warehouse.Structure;
 
@@ -42,8 +43,6 @@ codeunit 140007 "Subc. Whse Location Config"
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
-        LibraryInventory: Codeunit "Library - Inventory";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
         LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
@@ -89,14 +88,12 @@ codeunit 140007 "Subc. Whse Location Config"
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ItemLedgerEntry: Record "Item Ledger Entry";
         CapacityLedgerEntry: Record "Capacity Ledger Entry";
-        GLEntry: Record "G/L Entry";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
         Quantity: Decimal;
@@ -174,6 +171,10 @@ codeunit 140007 "Subc. Whse Location Config"
         CapacityLedgerEntry.SetRange("Order No.", ProductionOrder."No.");
         Assert.RecordIsNotEmpty(CapacityLedgerEntry);
 
+        // [THEN] Verify: Output Quantity in Capacity Ledger Entry
+        CapacityLedgerEntry.CalcSums("Output Quantity");
+        Assert.AreEqual(Quantity, CapacityLedgerEntry."Output Quantity", 'Capacity Ledger Entry Output Quantity should match the expected quantity');
+
         // [THEN] Verify: Quantity Reconciliation - all quantities posted correctly
         Assert.AreEqual(Quantity, PostedWhseReceiptLine.Quantity,
             'Posted Warehouse Receipt Line should have the full quantity');
@@ -194,8 +195,6 @@ codeunit 140007 "Subc. Whse Location Config"
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
-        ValueEntry: Record "Value Entry";
         WarehouseEmployee: Record "Warehouse Employee";
         Quantity: Decimal;
         TotalItemLedgerQty: Decimal;
@@ -257,12 +256,6 @@ codeunit 140007 "Subc. Whse Location Config"
 
         // [THEN] Verify: Capacity Ledger Entries exist and are correct
         SubcWarehouseLibrary.VerifyCapacityLedgerEntry(WorkCenter[2]."No.", Quantity);
-
-        // [THEN] Verify: Value Entries are created
-        ValueEntry.SetRange("Item No.", Item."No.");
-        ValueEntry.SetRange("Location Code", Location.Code);
-        ValueEntry.SetRange("Order Type", ValueEntry."Order Type"::Production);
-        Assert.RecordIsNotEmpty(ValueEntry);
     end;
 
     [Test]
@@ -275,7 +268,6 @@ codeunit 140007 "Subc. Whse Location Config"
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
@@ -376,7 +368,6 @@ codeunit 140007 "Subc. Whse Location Config"
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         Quantity: Decimal;
     begin
         // [SCENARIO] Verify standard posting process and bin handling for Bin Mandatory Only location
@@ -418,6 +409,12 @@ codeunit 140007 "Subc. Whse Location Config"
         // [GIVEN] Update Purchase Line with Bin Code (simulating user input)
         PurchaseLine.Validate("Bin Code", Bin.Code);
         PurchaseLine.Modify(true);
+
+        // [GIVEN] Release Purchase Document
+        LibraryPurchase.ReleasePurchaseDocument(PurchaseHeader);
+
+        // [THEN] Verify: No Warehouse Receipt can be created (location has Bin Mandatory but not Require Receive)
+        VerifyNoWarehouseReceiptCreated(PurchaseHeader);
 
         // [WHEN] Post Purchase Order directly (standard posting)
         LibraryPurchase.PostPurchaseDocument(PurchaseHeader, true, false);
@@ -509,5 +506,16 @@ codeunit 140007 "Subc. Whse Location Config"
         CapacityLedgerEntry.SetRange("Order No.", ProductionOrder."No.");
         Assert.RecordIsNotEmpty(CapacityLedgerEntry);
         SubcWarehouseLibrary.VerifyCapacityLedgerEntry(WorkCenter[1]."No.", Quantity);
+    end;
+
+    local procedure VerifyNoWarehouseReceiptCreated(PurchaseHeader: Record "Purchase Header")
+    var
+        WarehouseRequest: Record "Warehouse Request";
+    begin
+        // Verify that no warehouse request exists for this purchase order
+        WarehouseRequest.SetRange("Source Type", Database::"Purchase Line");
+        WarehouseRequest.SetRange("Source Subtype", PurchaseHeader."Document Type".AsInteger());
+        WarehouseRequest.SetRange("Source No.", PurchaseHeader."No.");
+        Assert.RecordIsEmpty(WarehouseRequest);
     end;
 }

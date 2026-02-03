@@ -42,9 +42,6 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
-        LibraryInventory: Codeunit "Library - Inventory";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
-        LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
@@ -91,7 +88,6 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;

@@ -195,35 +195,6 @@ codeunit 140008 "Subc. Warehouse Library"
         exit(RoutingHeader."No.");
     end;
 
-    procedure CreateRoutingWithNonLastOperation(var MachineCenter: array[2] of Record "Machine Center"; var WorkCenter: array[2] of Record "Work Center"): Code[20]
-    var
-        RoutingHeader: Record "Routing Header";
-        RoutingLine: Record "Routing Line";
-    begin
-        LibraryManufacturing.CreateRoutingHeader(RoutingHeader, RoutingHeader.Type::Serial);
-
-        // Create routing lines - operation 10 is NON-LAST (has next operation 20)
-        LibraryManufacturing.CreateRoutingLine(
-            RoutingHeader, RoutingLine, '', '10', RoutingLine.Type::"Work Center", WorkCenter[1]."No.");
-        RoutingLine.Validate("Next Operation No.", '20');
-        RoutingLine.Modify(true);
-
-        // Operation 20 is LAST (no next operation)
-        LibraryManufacturing.CreateRoutingLine(
-            RoutingHeader, RoutingLine, '', '20', RoutingLine.Type::"Work Center", WorkCenter[2]."No.");
-
-        // Additional machine center operations
-        LibraryManufacturing.CreateRoutingLine(
-            RoutingHeader, RoutingLine, '', '30', RoutingLine.Type::"Machine Center", MachineCenter[1]."No.");
-        LibraryManufacturing.CreateRoutingLine(
-            RoutingHeader, RoutingLine, '', '40', RoutingLine.Type::"Machine Center", MachineCenter[2]."No.");
-
-        RoutingHeader.Validate(Status, RoutingHeader.Status::Certified);
-        RoutingHeader.Modify(true);
-
-        exit(RoutingHeader."No.");
-    end;
-
     procedure UpdateProdBomAndRoutingWithRoutingLink(Item: Record Item; WorkCenterNo: Code[20])
     var
         ProductionBOMHeader: Record "Production BOM Header";
@@ -377,14 +348,6 @@ codeunit 140008 "Subc. Warehouse Library"
         Location.Modify(true);
     end;
 
-    procedure CreateLocationWithBins(var Location: Record Location; var DefaultBin: Record Bin)
-    begin
-        CreateLocationWithWarehouseHandling(Location);
-        LibraryWarehouse.CreateBin(DefaultBin, Location.Code, 'DEFAULT', '', '');
-        Location.Validate("Default Bin Code", DefaultBin.Code);
-        Location.Modify(true);
-    end;
-
     // ========================================
     // PRODUCTION ORDER FUNCTIONS
     // ========================================
@@ -482,17 +445,13 @@ codeunit 140008 "Subc. Warehouse Library"
         WarehouseReceiptLine.SetRange("Source No.", PurchaseHeader."No.");
         WarehouseReceiptLine.FindFirst();
         WarehouseReceiptHeader.Get(WarehouseReceiptLine."No.");
-        // LibraryWarehouse.AutofillQtyToRecvWhseReceipt(WarehouseReceiptHeader);
     end;
 
     procedure CreateWarehouseReceiptUsingGetSourceDocuments(var WarehouseReceiptHeader: Record "Warehouse Receipt Header"; LocationCode: Code[10])
     var
-        GetSourceDocOutbound: Codeunit "Get Source Doc. Outbound";
         WarehouseSourceFilter: Record "Warehouse Source Filter";
     begin
         LibraryWarehouse.CreateWarehouseReceiptHeader(WarehouseReceiptHeader);
-        // WarehouseReceiptHeader.Validate("Location Code", LocationCode);
-        // WarehouseReceiptHeader.Modify(true);
 
         LibraryWarehouse.GetSourceDocumentsReceipt(WarehouseReceiptHeader, WarehouseSourceFilter, LocationCode);
     end;
@@ -528,7 +487,6 @@ codeunit 140008 "Subc. Warehouse Library"
     var
         PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        WhseSourceCreateDocument: Report "Whse.-Source - Create Document";
     begin
         PostedWhseReceiptLine.SetRange("No.", PostedWhseReceiptHeader."No.");
         PostedWhseReceiptLine.FindFirst();
@@ -595,7 +553,6 @@ codeunit 140008 "Subc. Warehouse Library"
     procedure GetWarehouseDocumentsForPutAwayWorksheet(WhseWorksheetTemplateName: Code[10]; WhseWorksheetName: Record "Whse. Worksheet Name"; LocationCode: Code[10])
     var
         WhseWorksheetLine: Record "Whse. Worksheet Line";
-        GetSourceDocsReport: Report "Get Source Documents";
         WhsePutAwayRequest: Record "Whse. Put-away Request";
     begin
         WhsePutAwayRequest.SetRange("Completely Put Away", false);
@@ -628,26 +585,6 @@ codeunit 140008 "Subc. Warehouse Library"
         WarehouseActivityHeader.FindLast();
     end;
 
-    // ========================================
-    // ITEM TRACKING FUNCTIONS
-    // ========================================
-
-    procedure CreateSerialTrackedItemForProduction(var Item: Record Item; var WorkCenter: array[2] of Record "Work Center"; var MachineCenter: array[2] of Record "Machine Center")
-    var
-        ItemTrackingCode: Record "Item Tracking Code";
-    begin
-        CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
-
-        // Create item tracking code for serial numbers
-        LibraryInventory.CreateItemTrackingCode(ItemTrackingCode);
-        ItemTrackingCode."SN Specific Tracking" := true;
-        ItemTrackingCode."SN Info. Inbound Must Exist" := true;
-        ItemTrackingCode."SN Info. Outbound Must Exist" := true;
-        ItemTrackingCode.Modify(true);
-
-        Item.Validate("Item Tracking Code", ItemTrackingCode.Code);
-        Item.Modify(true);
-    end;
     // ========================================
     // VERIFICATION FUNCTIONS
     // ========================================
@@ -698,72 +635,6 @@ codeunit 140008 "Subc. Warehouse Library"
     end;
 
     // ========================================
-    // COMBINED SCENARIO FUNCTIONS
-    // ========================================
-
-    procedure CreateAndCalculateNeededWorkAndMachineCenterSameVendor(var WorkCenter: array[2] of Record "Work Center"; var MachineCenter: array[2] of Record "Machine Center"; var Vendor: Record Vendor)
-    begin
-        CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
-
-        // Use same vendor for both work centers
-        Vendor.Get(WorkCenter[2]."Subcontractor No.");
-        WorkCenter[1]."Subcontractor No." := Vendor."No.";
-        WorkCenter[1].Modify(true);
-    end;
-
-    procedure UpdateProdBomAndRoutingWithRoutingLinkForBothOperations(Item: Record Item; WorkCenter1No: Code[20]; WorkCenter2No: Code[20])
-    var
-        ProductionBOMHeader: Record "Production BOM Header";
-        ProductionBOMLine: Record "Production BOM Line";
-        RoutingHeader: Record "Routing Header";
-        RoutingLine: Record "Routing Line";
-        RoutingLink: Record "Routing Link";
-    begin
-        // Create routing link
-        LibraryManufacturing.CreateRoutingLink(RoutingLink);
-
-        // Update routing for both work centers
-        RoutingHeader.Get(Item."Routing No.");
-        RoutingHeader.Validate(Status, RoutingHeader.Status::New);
-        RoutingHeader.Modify(true);
-
-        // Update first work center
-        RoutingLine.SetRange("Routing No.", RoutingHeader."No.");
-        RoutingLine.SetRange(Type, RoutingLine.Type::"Work Center");
-        RoutingLine.SetRange("No.", WorkCenter1No);
-        if RoutingLine.FindFirst() then begin
-            RoutingLine.Validate("Routing Link Code", RoutingLink.Code);
-            RoutingLine.Modify(true);
-        end;
-
-        // Update second work center
-        RoutingLine.SetRange("No.", WorkCenter2No);
-        if RoutingLine.FindFirst() then begin
-            RoutingLine.Validate("Routing Link Code", RoutingLink.Code);
-            RoutingLine.Modify(true);
-        end;
-
-        RoutingHeader.Validate(Status, RoutingHeader.Status::Certified);
-        RoutingHeader.Modify(true);
-
-        // Update production BOM
-        ProductionBOMHeader.Get(Item."Production BOM No.");
-        ProductionBOMHeader.Validate(Status, ProductionBOMHeader.Status::New);
-        ProductionBOMHeader.Modify(true);
-
-        ProductionBOMLine.SetRange("Production BOM No.", ProductionBOMHeader."No.");
-        ProductionBOMLine.ModifyAll("Routing Link Code", RoutingLink.Code);
-
-        ProductionBOMHeader.Validate(Status, ProductionBOMHeader.Status::Certified);
-        ProductionBOMHeader.Modify(true);
-    end;
-
-    procedure CreateAdditionalPurchaseLineOnExistingPO(var PurchaseHeader: Record "Purchase Header"; ItemNo: Code[20]; Quantity: Decimal; var NewPurchaseLine: Record "Purchase Line")
-    begin
-        LibraryPurchase.CreatePurchaseLine(NewPurchaseLine, PurchaseHeader, NewPurchaseLine.Type::Item, ItemNo, Quantity);
-    end;
-
-    // ========================================
     // COMPLETE SCENARIO SETUP FUNCTIONS
     // ========================================
 
@@ -797,25 +668,6 @@ codeunit 140008 "Subc. Warehouse Library"
         // Create purchase order
         CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
         PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
-    end;
-
-    procedure SetupCompleteWarehouseReceiptScenario(var Item: Record Item; var Location: Record Location; var WarehouseReceiptHeader: Record "Warehouse Receipt Header"; Quantity: Decimal)
-    var
-        ProductionOrder: Record "Production Order";
-        PurchaseHeader: Record "Purchase Header";
-    begin
-        SetupCompleteSubcontractingWarehouseScenario(Item, Location, ProductionOrder, PurchaseHeader, Quantity);
-        CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
-    end;
-
-    procedure SetupCompletePutAwayScenario(var Item: Record Item; var Location: Record Location; var WarehouseActivityHeader: Record "Warehouse Activity Header"; Quantity: Decimal)
-    var
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-    begin
-        SetupCompleteWarehouseReceiptScenario(Item, Location, WarehouseReceiptHeader, Quantity);
-        PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
-        CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
     end;
 
     procedure CreateLotTrackedItemForProductionWithSetup(var Item: Record Item; var WorkCenter: array[2] of Record "Work Center"; var MachineCenter: array[2] of Record "Machine Center")
@@ -854,28 +706,5 @@ codeunit 140008 "Subc. Warehouse Library"
         Item.Validate("Item Tracking Code", ItemTrackingCode.Code);
         Item.Validate("Serial Nos.", SerialNoSeries.Code);
         Item.Modify(true);
-    end;
-
-    procedure VerifyWhseReceiptLineTracking(WhseReceiptNo: Code[20]; ItemNo: Code[20]; SerialNo: Code[50]; LotNo: Code[50]; Quantity: Decimal)
-    var
-        WhseReceiptLine: Record "Warehouse Receipt Line";
-        ReservationEntry: Record "Reservation Entry";
-        Assert: Codeunit Assert;
-    begin
-        WhseReceiptLine.SetRange("No.", WhseReceiptNo);
-        WhseReceiptLine.SetRange("Item No.", ItemNo);
-        WhseReceiptLine.FindFirst();
-
-        ReservationEntry.SetRange("Source Type", Database::"Warehouse Receipt Line");
-        ReservationEntry.SetRange("Source Subtype", 0);
-        ReservationEntry.SetRange("Source ID", WhseReceiptLine."No.");
-        ReservationEntry.SetRange("Source Ref. No.", WhseReceiptLine."Line No.");
-        if SerialNo <> '' then
-            ReservationEntry.SetRange("Serial No.", SerialNo);
-        if LotNo <> '' then
-            ReservationEntry.SetRange("Lot No.", LotNo);
-
-        ReservationEntry.FindFirst();
-        Assert.AreEqual(Quantity, ReservationEntry."Quantity (Base)", 'Tracking Quantity does not match');
     end;
 }
