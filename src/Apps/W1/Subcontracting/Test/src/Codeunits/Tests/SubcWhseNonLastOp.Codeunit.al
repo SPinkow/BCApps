@@ -566,7 +566,7 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         asserterror PurchaseOrderPage.PurchLines."Item Tracking Lines".Invoke();
 
         // [THEN] Verify error message indicates item tracking is not available for non-last operation
-        Assert.ExpectedError('You cannot define item tracking on this line because it is linked to production order');
+        Assert.ExpectedError('Item tracking lines can only be viewed for subcontracting purchase lines which are linked to a routing line which is the last operation.');
     end;
 
     [Test]

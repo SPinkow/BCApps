@@ -64,7 +64,6 @@ codeunit 140008 "Subc. Warehouse Library"
         LibraryManufacturing.CreateCapacityUnitOfMeasure(CapacityUnitOfMeasure, "Capacity Unit of Measure"::Minutes);
         ShopCalendarCode := LibraryManufacturing.UpdateShopCalendarWorkingDays();
 
-        // Set up subcontracting vendors if needed - each work center gets a different vendor
         if Subcontracting then begin
             LibraryPurchase.CreateSubcontractor(Vendor1);
             Vendor1."Subcontr. Location Code" := LibraryWarehouse.CreateLocation(Location);
@@ -376,6 +375,7 @@ codeunit 140008 "Subc. Warehouse Library"
         SubcontractingMgmt: Codeunit "Subcontracting Management";
     begin
         ProdOrderRtngLine.SetRange("Routing No.", RoutingNo);
+        ProdOrderRtngLine.SetRange(Type, ProdOrderRtngLine.Type::"Work Center");
         ProdOrderRtngLine.SetRange("Work Center No.", WorkCenterNo);
         ProdOrderRtngLine.FindFirst();
 
