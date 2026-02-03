@@ -84,14 +84,14 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         PurchaseLine: Record "Purchase Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         Bin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Create and verify warehouse receipt from subcontracting purchase order for last operation
-        // [FEATURE] Subcontracting Warehouse Receipt - Comprehensive validation of field mapping and data consistency
+        // [FEATURE] Subcontracting Warehouse Receipt - Unit-level validation of receipt creation and field mapping
+        // Note: This test focuses on receipt CREATION only. For full flow testing (receipt + put-away), see FullWarehouseFlowForLastOperation_ReceiptToPutAway
 
         // [GIVEN] Complete Setup of Manufacturing, include Work- and Machine Centers, Item
         Initialize();
@@ -177,6 +177,69 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         Assert.AreEqual("Subc. Purchase Line Type"::LastOperation,
             WarehouseReceiptLine."Subc. Purchase Line Type",
             'Warehouse Receipt Line should be marked as Last Operation');
+    end;
+
+    [Test]
+    procedure FullWarehouseFlowForLastOperation_ReceiptToPutAway()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        VendorLocation: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        ReceiveBin: Record Bin;
+        PutAwayBin: Record Bin;
+        Quantity: Decimal;
+    begin
+        // [SCENARIO] Complete warehouse flow from receipt creation through put-away completion for last operation
+        // [FEATURE] Subcontracting Warehouse - Full Integration Test covering Receipt + Put-away Flow
+        // This test combines receipt creation, posting, put-away creation, and put-away registration
+
+        // [GIVEN] Complete Manufacturing Setup with Work Centers, Machine Centers, and Item
+        Initialize();
+        Quantity := LibraryRandom.RandInt(10) + 5;
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+
+        // [GIVEN] Create Location with Warehouse Handling AND Bin Mandatory (Require Receive, Put-away, Bin Mandatory)
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandlingAndBins(Location, ReceiveBin, PutAwayBin);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := LibraryWarehouse.CreateLocationWithInventoryPostingSetup(VendorLocation);
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [WHEN] Create Warehouse Receipt from Purchase Order
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
 
         // [WHEN] Post Warehouse Receipt
         SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
@@ -184,8 +247,48 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         // [THEN] Verify Ledger Entries: Item ledger entries created for last operation
         VerifyItemLedgerEntriesExist(Item."No.", Location.Code, Quantity);
 
-        // [THEN] Verify Ledger Entries: Capacity ledger entries also created for last operation
+        // [THEN] Verify Ledger Entries: Capacity ledger entries created for last operation
         VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.", Quantity);
+
+        // [WHEN] Create Put-away from Posted Warehouse Receipt
+        SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
+
+        // [THEN] Verify Put-away document is created
+        Assert.AreNotEqual('', WarehouseActivityHeader."No.",
+            'Put-away document should be created');
+        Assert.AreEqual(WarehouseActivityHeader.Type::"Put-away", WarehouseActivityHeader.Type,
+            'Activity document should be of type Put-away');
+
+        // [THEN] Verify Put-away Take line has correct item and quantity
+        WarehouseActivityLine.SetRange("Activity Type", WarehouseActivityLine."Activity Type"::"Put-away");
+        WarehouseActivityLine.SetRange("No.", WarehouseActivityHeader."No.");
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Take);
+        Assert.RecordIsNotEmpty(WarehouseActivityLine);
+        WarehouseActivityLine.FindFirst();
+
+        Assert.AreEqual(Item."No.", WarehouseActivityLine."Item No.",
+            'Put-away Take line should have correct item');
+        Assert.AreEqual(Quantity, WarehouseActivityLine.Quantity,
+            'Put-away Take line should have correct quantity');
+
+        // [THEN] Verify Put-away Place line has correct bin assignment
+        WarehouseActivityLine.SetRange("Action Type", WarehouseActivityLine."Action Type"::Place);
+        Assert.RecordIsNotEmpty(WarehouseActivityLine);
+        WarehouseActivityLine.FindFirst();
+        Assert.AreEqual(PutAwayBin.Code, WarehouseActivityLine."Bin Code",
+            'Put-away Place line should use default bin from location setup');
+
+        // [WHEN] Register Put-away
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
+
+        // [THEN] Verify Bin Contents are correctly updated after put-away registration
+        SubcWarehouseLibrary.VerifyBinContents(Location.Code, PutAwayBin.Code, Item."No.", Quantity);
+
+        // [THEN] Verify complete flow succeeded - Item Ledger Entry exists with correct quantity
+        SubcWarehouseLibrary.VerifyItemLedgerEntry(Item."No.", Quantity, Location.Code);
+
+        // [THEN] Verify complete flow succeeded - Capacity Ledger Entry exists
+        SubcWarehouseLibrary.VerifyCapacityLedgerEntry(WorkCenter[2]."No.", Quantity);
     end;
 
     [Test]

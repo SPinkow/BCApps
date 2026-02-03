@@ -79,7 +79,7 @@ codeunit 140007 "Subc. Whse Location Config"
     end;
 
     [Test]
-    procedure LocationWithRequirePutawayDisabled_DirectInventoryUpdate()
+    procedure LocationWithRequirePutawayDisabled_DirectInventoryUpdateAndLedgerVerification()
     var
         Item: Record Item;
         Location: Record Location;
@@ -97,8 +97,9 @@ codeunit 140007 "Subc. Whse Location Config"
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
         Quantity: Decimal;
+        TotalItemLedgerQty: Decimal;
     begin
-        // [SCENARIO] Process subcontracting receipt in location where put-away is not required
+        // [SCENARIO] Process subcontracting receipt in location where put-away is not required and verify all ledger entries are correct
         // [FEATURE] Subcontracting - Location Configuration
 
         // [GIVEN] Complete Setup of Manufacturing
@@ -180,65 +181,9 @@ codeunit 140007 "Subc. Whse Location Config"
             'Posted Warehouse Receipt Line should have the full quantity');
         Assert.AreEqual(PostedWhseReceiptLine.Quantity * PostedWhseReceiptLine."Qty. per Unit of Measure", PostedWhseReceiptLine."Qty. (Base)",
             'Qty. (Base) should equal Quantity * Qty. per Unit of Measure');
-    end;
 
-    [Test]
-    procedure LocationWithRequirePutawayDisabled_AllLedgerEntriesCorrect()
-    var
-        Item: Record Item;
-        Location: Record Location;
-        MachineCenter: array[2] of Record "Machine Center";
-        ProductionOrder: Record "Production Order";
-        PurchaseHeader: Record "Purchase Header";
-        PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ItemLedgerEntry: Record "Item Ledger Entry";
-        WarehouseEmployee: Record "Warehouse Employee";
-        Quantity: Decimal;
-        TotalItemLedgerQty: Decimal;
-    begin
-        // [SCENARIO] Verify all ledger entries are correct when posting warehouse receipt without put-away
-        // [FEATURE] Subcontracting - Location Configuration
-
-        // [GIVEN] Complete Setup
-        Initialize();
-        Quantity := LibraryRandom.RandIntInRange(10, 20);
-
-        // [GIVEN] Create Manufacturing Setup
-        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
-        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
-        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
-
-        // [GIVEN] Create Location with Require Receive only
-        SubcWarehouseLibrary.CreateLocationWithRequireReceiveOnly(Location);
-
-        // [GIVEN] Create Warehouse Employee for the location
-        LibraryWarehouse.CreateWarehouseEmployee(WarehouseEmployee, Location.Code, false);
-
-        // [GIVEN] Configure Vendor
-        Vendor.Get(WorkCenter[2]."Subcontractor No.");
-        Vendor."Subcontr. Location Code" := Location.Code;
-        Vendor."Location Code" := Location.Code;
-        Vendor.Modify();
-
-        // [GIVEN] Create Production Order
-        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
-            ProductionOrder, "Production Order Status"::Released,
-            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
-
-        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
-
-        // [GIVEN] Create Subcontracting Purchase Order and Warehouse Receipt
-        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
-        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
-        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
-
-        // [WHEN] Post Warehouse Receipt
-        LibraryWarehouse.PostWhseReceipt(WarehouseReceiptHeader);
-
-        // [THEN] Verify: Item Ledger Entries are correct
+        // [THEN] Verify: Item Ledger Entries are correct with production order linkage
+        ItemLedgerEntry.Reset();
         ItemLedgerEntry.SetRange("Item No.", Item."No.");
         ItemLedgerEntry.SetRange("Location Code", Location.Code);
         ItemLedgerEntry.SetRange("Order Type", ItemLedgerEntry."Order Type"::Production);
