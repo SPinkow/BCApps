@@ -52,9 +52,9 @@ codeunit 140008 "Subc. Warehouse Library"
     procedure CreateAndCalculateNeededWorkAndMachineCenter(var WorkCenter: array[2] of Record "Work Center"; var MachineCenter: array[2] of Record "Machine Center"; Subcontracting: Boolean)
     var
         CapacityUnitOfMeasure: Record "Capacity Unit of Measure";
+        Location: Record Location;
         Vendor1: Record Vendor;
         Vendor2: Record Vendor;
-        Location: Record Location;
         ShopCalendarCode: Code[10];
         MachineCenterNo: Code[20];
         MachineCenterNo2: Code[20];
@@ -389,9 +389,9 @@ codeunit 140008 "Subc. Warehouse Library"
 
     procedure CreateSubcontractingOrdersViaWorksheet(ProductionOrderNo: Code[20]; var PurchaseHeader: Record "Purchase Header")
     var
-        SubMgmtSetup: Record "Subc. Management Setup";
-        RequisitionLine: Record "Requisition Line";
         PurchaseLine: Record "Purchase Line";
+        RequisitionLine: Record "Requisition Line";
+        SubMgmtSetup: Record "Subc. Management Setup";
         CalculateSubContract: Report "Calculate Subcontracts";
         CarryOutActionMsgReq: Report "Carry Out Action Msg. - Req.";
     begin
@@ -552,8 +552,8 @@ codeunit 140008 "Subc. Warehouse Library"
 
     procedure GetWarehouseDocumentsForPutAwayWorksheet(WhseWorksheetTemplateName: Code[10]; WhseWorksheetName: Record "Whse. Worksheet Name"; LocationCode: Code[10])
     var
-        WhseWorksheetLine: Record "Whse. Worksheet Line";
         WhsePutAwayRequest: Record "Whse. Put-away Request";
+        WhseWorksheetLine: Record "Whse. Worksheet Line";
     begin
         WhsePutAwayRequest.SetRange("Completely Put Away", false);
         WhsePutAwayRequest.SetRange("Location Code", LocationCode);
@@ -640,10 +640,10 @@ codeunit 140008 "Subc. Warehouse Library"
 
     procedure SetupCompleteSubcontractingWarehouseScenario(var Item: Record Item; var Location: Record Location; var ProductionOrder: Record "Production Order"; var PurchaseHeader: Record "Purchase Header"; Quantity: Decimal)
     var
-        WorkCenter: array[2] of Record "Work Center";
         MachineCenter: array[2] of Record "Machine Center";
         PurchaseLine: Record "Purchase Line";
         Vendor: Record Vendor;
+        WorkCenter: array[2] of Record "Work Center";
     begin
         // Complete setup for most common warehouse scenarios
         CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);

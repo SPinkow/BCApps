@@ -38,21 +38,21 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
+        LibraryPurchase: Codeunit "Library - Purchase";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
-        LibraryPurchase: Codeunit "Library - Purchase";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
-        HandlingSerialNo: Code[50];
         HandlingLotNo: Code[50];
+        HandlingSerialNo: Code[50];
         HandlingQty: Decimal;
-        HandlingMode: Option Verify,Insert;
         HandlingSourceType: Integer;
+        HandlingMode: Option Verify,Insert;
 
     local procedure Initialize()
     begin
@@ -85,23 +85,23 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
     [Test]
     procedure ProdOrderWithLastAndIntermediateOperationsSameVendor()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
         WarehouseEmployee: Record "Warehouse Employee";
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] Prod. Order with Last and Intermediate Operations (Same Vendor)
@@ -231,26 +231,26 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
     [Test]
     procedure ProdOrderWithMultipleOperationsDifferentVendors()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader1: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptHeader2: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader1: Record "Purchase Header";
         PurchaseHeader2: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor1: Record Vendor;
+        Vendor2: Record Vendor;
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehouseEmployee: Record "Warehouse Employee";
         WarehouseReceiptHeader1: Record "Warehouse Receipt Header";
         WarehouseReceiptHeader2: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader1: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptHeader2: Record "Posted Whse. Receipt Header";
-        WarehouseActivityHeader: Record "Warehouse Activity Header";
-        WarehouseActivityLine: Record "Warehouse Activity Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor1: Record Vendor;
-        Vendor2: Record Vendor;
-        WarehouseEmployee: Record "Warehouse Employee";
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Prod. Order with Multiple Operations (Different Vendors)
@@ -379,21 +379,21 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
     [Test]
     procedure WhseReceiptCreationWithGetSourceDocumentsMultipleProdOrders()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder1: Record "Production Order";
         ProductionOrder2: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         WarehouseEmployee: Record "Warehouse Employee";
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity1: Decimal;
         Quantity2: Decimal;
     begin
@@ -484,7 +484,7 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
 
     local procedure VerifyPurchaseLineQuantityBase(PurchaseLine: Record "Purchase Line")
     begin
-        //Check real quantity base 
+        //Check real quantity base
         if PurchaseLine."Subc. Purchase Line Type" = "Subc. Purchase Line Type"::LastOperation then begin
             Assert.IsTrue(PurchaseLine."Quantity (Base)" > 0, 'LastOperation Purchase Line should have Quantity (Base) > 0');
             Assert.IsTrue(PurchaseLine."Qty. per Unit of Measure" > 0, 'LastOperation Purchase Line should have Qty. per UoM > 0');
@@ -542,8 +542,8 @@ codeunit 140006 "Subc. Whse Combined Scenarios"
 
     local procedure VerifyLedgerEntriesForMultiVendorScenario(ItemNo: Code[20]; Quantity: Decimal; LocationCode: Code[10])
     var
-        ItemLedgerEntry: Record "Item Ledger Entry";
         CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        ItemLedgerEntry: Record "Item Ledger Entry";
         WarehouseEntry: Record "Warehouse Entry";
     begin
         // Verify Item Ledger Entries and Quantity (Base)

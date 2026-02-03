@@ -45,10 +45,10 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
 
     local procedure Initialize()
@@ -77,17 +77,17 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     [Test]
     procedure CreateAndVerifyWhseReceiptFromSubcontractingPOForLastOperation()
     var
+        Bin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        Bin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Create and verify warehouse receipt from subcontracting purchase order for last operation
@@ -183,22 +183,21 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     [Test]
     procedure FullWarehouseFlowForLastOperation_ReceiptToPutAway()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Complete warehouse flow from receipt creation through put-away completion for last operation
@@ -295,28 +294,28 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     [Test]
     procedure VerifyEndToEndUoMFlowWithAlternativeUoM()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         ItemUnitOfMeasure: Record "Item Unit of Measure";
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
-        ItemLedgerEntry: Record "Item Ledger Entry";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        Quantity: Decimal;
-        QtyPerUoM: Decimal;
         ExpectedBaseQty: Decimal;
+        QtyPerUoM: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Verify end-to-end flow with alternative UoM - Purchase Line to Item Ledger Entry
         // [FEATURE] Subcontracting Warehouse - Complete UoM Flow Verification
@@ -471,24 +470,24 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     [HandlerFunctions('ConfirmHandler')]
     procedure UndoPurchaseReceiptForLastOperation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
+        PurchRcptLine: Record "Purch. Rcpt. Line";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        PurchRcptLine: Record "Purch. Rcpt. Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        Quantity: Decimal;
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
         OriginalQtyReceived: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Undo purchase receipt for last operation reverses item and capacity ledger entries
         // [FEATURE] Subcontracting Warehouse Receipt - Undo functionality for last operation
@@ -584,21 +583,21 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
     [HandlerFunctions('ConfirmHandler')]
     procedure UndoPurchaseReceiptFailsWhenPutAwayRegistered()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
+        PurchRcptLine: Record "Purch. Rcpt. Line";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        PurchRcptLine: Record "Purch. Rcpt. Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Undo purchase receipt fails when put-away has been registered

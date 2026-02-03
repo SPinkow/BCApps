@@ -48,16 +48,16 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
-        HandlingSerialNo: Code[50];
         HandlingLotNo: Code[50];
+        HandlingSerialNo: Code[50];
         HandlingQty: Decimal;
-        HandlingMode: Option Verify,Insert;
         HandlingSourceType: Integer;
+        HandlingMode: Option Verify,Insert;
 
     local procedure Initialize()
     begin
@@ -90,19 +90,19 @@ codeunit 140003 "Subc. Whse Non-Last Op."
     [Test]
     procedure CreateAndPostWhseReceiptForNonLastOperationFullQuantity()
     var
+        Bin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        Bin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Create and Post WH Receipt for Non-Last Operation (Full Quantity)
@@ -207,21 +207,21 @@ codeunit 140003 "Subc. Whse Non-Last Op."
     [Test]
     procedure CreateAndPostWhseReceiptForNonLastOperationPartialQuantity()
     var
+        Bin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        Bin: Record Bin;
-        Quantity: Decimal;
         PartialQuantity: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Create and Post WH Receipt for Non-Last Operation (Partial Quantity)
         // [FEATURE] Subcontracting Warehouse Receipt - Non-Last Operation Partial Posting
@@ -304,25 +304,25 @@ codeunit 140003 "Subc. Whse Non-Last Op."
     [Test]
     procedure PreventPutAwayCreationForNonLastOperation_AllMethods()
     var
+        Bin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WhseWorksheetLine: Record "Whse. Worksheet Line";
         WhseWorksheetName: Record "Whse. Worksheet Name";
         WhseWorksheetTemplate: Record "Whse. Worksheet Template";
-        WhseWorksheetLine: Record "Whse. Worksheet Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        Bin: Record Bin;
-        Quantity: Decimal;
         DirectPutAwayPrevented: Boolean;
         WorksheetPutAwayPrevented: Boolean;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Prevent Put-away Creation for Non-Last Operation via All Methods
         // [FEATURE] Subcontracting Warehouse Receipt - Put-away Prevention (Combined Test)
@@ -474,10 +474,10 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        PurchaseOrderPage: TestPage "Purchase Order";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
+        PurchaseOrderPage: TestPage "Purchase Order";
     begin
         // [SCENARIO] Item tracking is not available for non-last operation purchase lines
         // [FEATURE] Subcontracting Item Tracking - Error when opening item tracking for non-last operation
@@ -544,13 +544,13 @@ codeunit 140003 "Subc. Whse Non-Last Op."
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
+        WarehouseEmployee: Record "Warehouse Employee";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        WarehouseEmployee: Record "Warehouse Employee";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
         Quantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Item tracking is not available for non-last operation warehouse receipt lines
         // [FEATURE] Subcontracting Item Tracking - Error when opening item tracking for non-last operation from Warehouse Receipt

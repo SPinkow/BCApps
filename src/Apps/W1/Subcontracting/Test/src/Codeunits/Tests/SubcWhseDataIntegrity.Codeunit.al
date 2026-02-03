@@ -43,19 +43,17 @@ codeunit 140009 "Subc. Whse Data Integrity"
     var
         Assert: Codeunit Assert;
         LibraryERMCountryData: Codeunit "Library - ERM Country Data";
-        LibraryManufacturing: Codeunit "Library - Manufacturing";
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
-        LibraryUtility: Codeunit "Library - Utility";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
-        HandlingSerialNo: Code[50];
         HandlingLotNo: Code[50];
+        HandlingSerialNo: Code[50];
         HandlingQty: Decimal;
         HandlingMode: Option Verify,Insert;
 
@@ -92,13 +90,13 @@ codeunit 140009 "Subc. Whse Data Integrity"
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
         ProductionOrder: Record "Production Order";
         PurchaseLine: Record "Purchase Line";
-        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        Quantity: Decimal;
+        WorkCenter: array[2] of Record "Work Center";
         LastOperationNo: Code[10];
+        Quantity: Decimal;
     begin
         // [SCENARIO] System prevents deletion of last routing operation when purchase orders exist
         // [FEATURE] Subcontracting Data Integrity - Prevention of last routing operation deletion
@@ -147,12 +145,12 @@ codeunit 140009 "Subc. Whse Data Integrity"
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        NewRoutingLine: Record "Prod. Order Routing Line";
+        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
         ProductionOrder: Record "Production Order";
         PurchaseLine: Record "Purchase Line";
-        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
-        NewRoutingLine: Record "Prod. Order Routing Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] System prevents adding routing operation after last operation when purchase orders exist
@@ -207,11 +205,11 @@ codeunit 140009 "Subc. Whse Data Integrity"
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
         ProductionOrder: Record "Production Order";
         PurchaseLine: Record "Purchase Line";
-        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] System prevents changing Operation No. on routing operation when purchase line exists
@@ -263,13 +261,13 @@ codeunit 140009 "Subc. Whse Data Integrity"
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
         ProductionOrder: Record "Production Order";
         PurchaseLine: Record "Purchase Line";
-        ProdOrderRoutingLine: Record "Prod. Order Routing Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        Quantity: Decimal;
+        WorkCenter: array[2] of Record "Work Center";
         OriginalSetupTime: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Verify data integrity when modifying last routing operation with associated purchase order
         // [FEATURE] Subcontracting Data Integrity - Modification validation
@@ -328,21 +326,21 @@ codeunit 140009 "Subc. Whse Data Integrity"
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
         WarehouseEmployee: Record "Warehouse Employee";
-        TotalQuantity: Decimal;
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
         FirstReceiptQty: Decimal;
         SecondReceiptQty: Decimal;
         ThirdReceiptQty: Decimal;
         TotalPostedQty: Decimal;
+        TotalQuantity: Decimal;
     begin
         // [SCENARIO] Verify quantity reconciliation is maintained after multiple partial warehouse receipts
         // [FEATURE] Subcontracting Data Integrity - Quantity Reconciliation

@@ -46,10 +46,10 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
 
     local procedure Initialize()
@@ -78,24 +78,24 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
     [Test]
     procedure RecreatePutAwayFromPostedWhseReceipt()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityHeader2: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        Quantity: Decimal;
         FirstPutAwayNo: Code[20];
+        Quantity: Decimal;
     begin
         // [SCENARIO] Recreate Put-away from Posted WH Receipt
         // [FEATURE] Subcontracting Warehouse Put-away - Recreate Put-away
@@ -172,25 +172,25 @@ codeunit 140001 "Subc. Whse Put-Away LastOp."
     [Test]
     procedure CreatePutAwayFromPutAwayWorksheetForLastOperation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         VendorLocation: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WhseWorksheetLine: Record "Whse. Worksheet Line";
         WhseWorksheetName: Record "Whse. Worksheet Name";
         WhseWorksheetTemplate: Record "Whse. Worksheet Template";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         Quantity: Decimal;
     begin
         // [SCENARIO] Create Put-away from Put-away Worksheet for Last Operation

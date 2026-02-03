@@ -46,16 +46,16 @@ codeunit 140002 "Subc. Whse Partial Last Op"
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
-        HandlingSerialNo: Code[50];
         HandlingLotNo: Code[50];
+        HandlingSerialNo: Code[50];
         HandlingQty: Decimal;
-        HandlingMode: Option Verify,Insert;
         HandlingSourceType: Integer;
+        HandlingMode: Option Verify,Insert;
 
     local procedure Initialize()
     begin
@@ -88,21 +88,21 @@ codeunit 140002 "Subc. Whse Partial Last Op"
     [Test]
     procedure PartialWhseReceiptPostingForLastOperation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        Quantity: Decimal;
         PartialQuantity: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Post partial quantity of warehouse receipt for Last Operation
         // [FEATURE] Subcontracting Warehouse Partial Posting - Last Operation
@@ -176,23 +176,23 @@ codeunit 140002 "Subc. Whse Partial Last Op"
     [Test]
     procedure PartialPutAwayPostingForLastOperation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        Quantity: Decimal;
-        PartialReceiptQty: Decimal;
         PartialPutAwayQty: Decimal;
+        PartialReceiptQty: Decimal;
+        Quantity: Decimal;
     begin
         // [SCENARIO] Post partial quantity of put-away created from partially received warehouse receipt for Last Operation
         // [FEATURE] Subcontracting Warehouse Partial Posting - Last Operation
@@ -266,28 +266,28 @@ codeunit 140002 "Subc. Whse Partial Last Op"
     [Test]
     procedure MultiStepPartialPostingForLastOperation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptHeader2: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseActivityHeader: Record "Warehouse Activity Header";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptHeader2: Record "Posted Whse. Receipt Header";
-        WarehouseActivityHeader2: Record "Warehouse Activity Header";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
-        TotalQuantity: Decimal;
-        FirstReceiptQty: Decimal;
-        SecondReceiptQty: Decimal;
-        ThirdReceiptQty: Decimal;
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseActivityHeader2: Record "Warehouse Activity Header";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
         FirstPutAwayQty: Decimal;
+        FirstReceiptQty: Decimal;
         SecondPutAwayQty: Decimal;
+        SecondReceiptQty: Decimal;
         ThirdPutAwayQty: Decimal;
+        ThirdReceiptQty: Decimal;
+        TotalQuantity: Decimal;
     begin
         // [SCENARIO] Post single order in multiple partial steps until full quantity processed for Last Operation
         // [FEATURE] Subcontracting Warehouse Multi-step Partial Posting - Last Operation
@@ -395,31 +395,30 @@ codeunit 140002 "Subc. Whse Partial Last Op"
     [HandlerFunctions('ItemTrackingLinesPageHandler')]
     procedure PartialLotPostingWithItemTrackingAndPutAwayRecreation()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         NoSeriesCodeunit: Codeunit "No. Series";
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
-        TotalQuantity: Decimal;
+        LotNo1: Code[50];
+        LotNo2: Code[50];
         PartialQtyLot1: Decimal;
         PartialQtyLot2: Decimal;
         PartialQtyToReceive: Decimal;
-        LotNo1: Code[50];
-        LotNo2: Code[50];
-        SingleLotNo: Code[50];
+        TotalQuantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Comprehensive item tracking test: partial lot posting with put-away recreation and quantity matching validation
         // [FEATURE] Subcontracting Item Tracking - Multiple lots with partial posting, put-away deletion/recreation, and quantity validation
@@ -598,7 +597,6 @@ codeunit 140002 "Subc. Whse Partial Last Op"
         Assert.AreEqual(ExpectedQuantity, ItemLedgerEntry.Quantity,
             'UoM base quantity calculations should be correct across all documents');
     end;
-
 
     local procedure VerifyWarehouseActivityLineForLot(WarehouseActivityHeader: Record "Warehouse Activity Header"; LotNo: Code[50]; ExpectedQuantity: Decimal)
     var

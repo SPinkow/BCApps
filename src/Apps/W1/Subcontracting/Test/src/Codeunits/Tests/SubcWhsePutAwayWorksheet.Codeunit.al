@@ -45,10 +45,10 @@ codeunit 140004 "Subc. Whse Put-Away Worksheet"
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
 
     local procedure Initialize()
@@ -77,13 +77,16 @@ codeunit 140004 "Subc. Whse Put-Away Worksheet"
     [Test]
     procedure CreateSinglePutAwayFromMultiplePostedWhseReceipts()
     var
+        PutAwayBin: Record Bin;
+        ReceiveBin: Record Bin;
         Item: array[2] of Record Item;
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: array[2] of Record "Posted Whse. Receipt Header";
         ProductionOrder: array[2] of Record "Production Order";
         PurchaseHeader: array[2] of Record "Purchase Header";
         PurchaseLine: array[2] of Record "Purchase Line";
-        PostedWhseReceiptHeader: array[2] of Record "Posted Whse. Receipt Header";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
@@ -92,9 +95,6 @@ codeunit 140004 "Subc. Whse Put-Away Worksheet"
         WhseWorksheetName: Record "Whse. Worksheet Name";
         WhseWorksheetTemplate: Record "Whse. Worksheet Template";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReceiveBin: Record Bin;
-        PutAwayBin: Record Bin;
         Quantity: array[2] of Decimal;
         TotalQuantity: Decimal;
     begin

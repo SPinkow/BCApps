@@ -47,12 +47,12 @@ codeunit 140007 "Subc. Whse Location Config"
         LibraryRandom: Codeunit "Library - Random";
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
-        LibraryWarehouse: Codeunit "Library - Warehouse";
         LibraryUtility: Codeunit "Library - Utility";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
+        LibraryWarehouse: Codeunit "Library - Warehouse";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
 
     local procedure Initialize()
@@ -81,21 +81,21 @@ codeunit 140007 "Subc. Whse Location Config"
     [Test]
     procedure LocationWithRequirePutawayDisabled_DirectInventoryUpdateAndLedgerVerification()
     var
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
-        ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
         TotalItemLedgerQty: Decimal;
     begin
@@ -206,21 +206,21 @@ codeunit 140007 "Subc. Whse Location Config"
     [Test]
     procedure LocationWithRequirePutawayDisabled_NonLastOperation()
     var
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
-        ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
         WarehouseActivityLine: Record "Warehouse Activity Line";
         WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] Process subcontracting receipt for non-last operation in location where put-away is not required
@@ -303,16 +303,16 @@ codeunit 140007 "Subc. Whse Location Config"
     [Test]
     procedure LocationWithBinMandatoryOnly_StandardPostingProcess()
     var
-        Item: Record Item;
-        Location: Record Location;
         Bin: Record Bin;
+        Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
+        Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        ItemLedgerEntry: Record "Item Ledger Entry";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] Verify standard posting process and bin handling for Bin Mandatory Only location
@@ -384,17 +384,17 @@ codeunit 140007 "Subc. Whse Location Config"
     [Test]
     procedure LocationWithBinMandatoryOnly_NonLastOperation()
     var
-        Item: Record Item;
-        Location: Record Location;
         Bin: Record Bin;
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
+        Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
-        WorkCenter: array[2] of Record "Work Center";
         Vendor: Record Vendor;
-        ItemLedgerEntry: Record "Item Ledger Entry";
-        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        WorkCenter: array[2] of Record "Work Center";
         Quantity: Decimal;
     begin
         // [SCENARIO] Verify standard posting process for non-last operation with Bin Mandatory Only location

@@ -48,16 +48,16 @@ codeunit 140005 "Subc. Whse Item Tracking"
         LibrarySetupStorage: Codeunit "Library - Setup Storage";
         LibraryTestInitialize: Codeunit "Library - Test Initialize";
         LibraryWarehouse: Codeunit "Library - Warehouse";
-        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubcLibraryMfgManagement: Codeunit "Subc. Library Mfg. Management";
-        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
+        SubcontractingMgmtLibrary: Codeunit "Subc. Management Library";
         SubSetupLibrary: Codeunit "Subc. Setup Library";
+        SubcWarehouseLibrary: Codeunit "Subc. Warehouse Library";
         IsInitialized: Boolean;
-        HandlingSerialNo: Code[50];
         HandlingLotNo: Code[50];
+        HandlingSerialNo: Code[50];
         HandlingQty: Decimal;
-        HandlingMode: Option Verify,Insert;
         HandlingSourceType: Integer;
+        HandlingMode: Option Verify,Insert;
 
     local procedure Initialize()
     begin
@@ -92,26 +92,26 @@ codeunit 140005 "Subc. Whse Item Tracking"
     procedure FullProcessWithSerialTrackingFromProdOrderLine()
     var
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
-        ProductionOrder: Record "Production Order";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProdOrderLine: Record "Prod. Order Line";
+        ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        ReservationEntry: Record "Reservation Entry";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehouseEmployee: Record "Warehouse Employee";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
-        WarehouseEmployee: Record "Warehouse Employee";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReservationEntry: Record "Reservation Entry";
-        ItemLedgerEntry: Record "Item Ledger Entry";
         NoSeriesCodeunit: Codeunit "No. Series";
-        Quantity: Decimal;
         SerialNo: Code[50];
+        Quantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Full Process with Serial Tracking from Production Order Line
         // [FEATURE] Subcontracting Item Tracking - Last Operation with Serial Numbers
@@ -214,27 +214,27 @@ codeunit 140005 "Subc. Whse Item Tracking"
     [HandlerFunctions('ItemTrackingLinesPageHandler')]
     procedure FullProcessWithLotTrackingFromProdOrderLine()
     var
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
-        ProductionOrder: Record "Production Order";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProdOrderLine: Record "Prod. Order Line";
+        ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        ReservationEntry: Record "Reservation Entry";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehouseEmployee: Record "Warehouse Employee";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        WarehouseEmployee: Record "Warehouse Employee";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ReservationEntry: Record "Reservation Entry";
-        ItemLedgerEntry: Record "Item Ledger Entry";
         NoSeriesCodeunit: Codeunit "No. Series";
-        Quantity: Decimal;
         LotNo: Code[50];
+        Quantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Full Process with Lot Tracking from Production Order Line
         // [FEATURE] Subcontracting Item Tracking - Last Operation with Lot Numbers
@@ -334,25 +334,25 @@ codeunit 140005 "Subc. Whse Item Tracking"
     [HandlerFunctions('ItemTrackingLinesPageHandler')]
     procedure FullProcessWithLotTrackingFromWhseReceiptLine()
     var
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         ProductionOrder: Record "Production Order";
         PurchaseHeader: Record "Purchase Header";
         PurchaseLine: Record "Purchase Line";
+        Vendor: Record Vendor;
         WarehouseActivityHeader: Record "Warehouse Activity Header";
         WarehouseActivityLine: Record "Warehouse Activity Line";
+        WarehouseEmployee: Record "Warehouse Employee";
         WarehouseReceiptHeader: Record "Warehouse Receipt Header";
         WarehouseReceiptLine: Record "Warehouse Receipt Line";
-        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
-        WarehouseEmployee: Record "Warehouse Employee";
         WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
-        ItemLedgerEntry: Record "Item Ledger Entry";
         NoSeriesCodeunit: Codeunit "No. Series";
-        Quantity: Decimal;
         LotNo: Code[50];
+        Quantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Full Process with Lot Tracking from Warehouse Receipt Line
         // [FEATURE] Subcontracting Item Tracking - Assign tracking at warehouse receipt stage
@@ -457,26 +457,26 @@ codeunit 140005 "Subc. Whse Item Tracking"
     [HandlerFunctions('ItemTrackingLinesPageHandler')]
     procedure ItemTrackingForNonLastOperations()
     var
-        WarehouseReceiptPage: TestPage "Warehouse Receipt";
         Item: Record Item;
+        ItemLedgerEntry: Record "Item Ledger Entry";
         Location: Record Location;
         MachineCenter: array[2] of Record "Machine Center";
-        ProductionOrder: Record "Production Order";
-        ProdOrderLine: Record "Prod. Order Line";
-        PurchaseHeader: Record "Purchase Header";
-        PurchaseLine: Record "Purchase Line";
-        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
-        WarehouseReceiptLine: Record "Warehouse Receipt Line";
         PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
         PostedWhseReceiptLine: Record "Posted Whse. Receipt Line";
-        WarehouseEmployee: Record "Warehouse Employee";
-        WorkCenter: array[2] of Record "Work Center";
-        Vendor: Record Vendor;
+        ProdOrderLine: Record "Prod. Order Line";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
         ReservationEntry: Record "Reservation Entry";
-        ItemLedgerEntry: Record "Item Ledger Entry";
+        Vendor: Record Vendor;
+        WarehouseEmployee: Record "Warehouse Employee";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        WarehouseReceiptLine: Record "Warehouse Receipt Line";
+        WorkCenter: array[2] of Record "Work Center";
         NoSeriesCodeunit: Codeunit "No. Series";
-        Quantity: Decimal;
         LotNo: Code[50];
+        Quantity: Decimal;
+        WarehouseReceiptPage: TestPage "Warehouse Receipt";
     begin
         // [SCENARIO] Item Tracking for Non-Last Operations
         // [FEATURE] Subcontracting Item Tracking - Intermediate Operations with Lot Numbers
@@ -564,13 +564,6 @@ codeunit 140005 "Subc. Whse Item Tracking"
         Assert.AreEqual(Quantity, ItemLedgerEntry.Quantity, 'Item Ledger Entry Quantity should match for non-last operation');
         Assert.AreEqual(LotNo, ItemLedgerEntry."Lot No.", 'Item Ledger Entry Lot No. should match for non-last operation');
     end;
-
-
-
-
-
-
-
 
     local procedure VerifyPostedWhseReceiptQuantity(var PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header"; ItemNo: Code[20]; ExpectedQuantity: Decimal)
     var
