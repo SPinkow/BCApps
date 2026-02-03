@@ -23,6 +23,7 @@ using Microsoft.Warehouse.Activity;
 using Microsoft.Warehouse.Document;
 using Microsoft.Warehouse.History;
 using Microsoft.Warehouse.Structure;
+using Microsoft.Purchases.History;
 
 codeunit 140000 "Subc. Whse Receipt Last Op."
 {
@@ -466,4 +467,199 @@ codeunit 140000 "Subc. Whse Receipt Last Op."
         end;
     end;
 
+    [Test]
+    [HandlerFunctions('ConfirmHandler')]
+    procedure UndoPurchaseReceiptForLastOperation()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        VendorLocation: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        PurchRcptLine: Record "Purch. Rcpt. Line";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        ItemLedgerEntry: Record "Item Ledger Entry";
+        CapacityLedgerEntry: Record "Capacity Ledger Entry";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        ReceiveBin: Record Bin;
+        PutAwayBin: Record Bin;
+        Quantity: Decimal;
+        OriginalQtyReceived: Decimal;
+    begin
+        // [SCENARIO] Undo purchase receipt for last operation reverses item and capacity ledger entries
+        // [FEATURE] Subcontracting Warehouse Receipt - Undo functionality for last operation
+
+        // [GIVEN] Complete Manufacturing Setup with Work Centers, Machine Centers, and Item
+        Initialize();
+        Quantity := LibraryRandom.RandInt(10) + 5;
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+
+        // [GIVEN] Create Location with Warehouse Handling AND Bin Mandatory
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandlingAndBins(Location, ReceiveBin, PutAwayBin);
+        Location."Use Put-away Worksheet" := true;
+        Location.Modify(true);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := LibraryWarehouse.CreateLocationWithInventoryPostingSetup(VendorLocation);
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [GIVEN] Create and Post Warehouse Receipt
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+        SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
+
+        // [GIVEN] Verify ledger entries were created (precondition for undo)
+        VerifyItemLedgerEntriesExist(Item."No.", Location.Code, Quantity);
+        VerifyCapacityLedgerEntriesExist(ProductionOrder."No.", WorkCenter[2]."No.", Quantity);
+
+        // [GIVEN] Store original purchase line received quantity
+        PurchaseLine.Get(PurchaseLine."Document Type", PurchaseLine."Document No.", PurchaseLine."Line No.");
+        OriginalQtyReceived := PurchaseLine."Quantity Received";
+        Assert.AreEqual(Quantity, OriginalQtyReceived, 'Purchase Line should have received the full quantity');
+
+        // [WHEN] Undo the Purchase Receipt Line
+        PurchRcptLine.SetRange("Order No.", PurchaseHeader."No.");
+        PurchRcptLine.SetRange("Order Line No.", PurchaseLine."Line No.");
+        PurchRcptLine.FindFirst();
+        Codeunit.Run(Codeunit::"Undo Purchase Receipt Line", PurchRcptLine);
+
+        // [THEN] Verify a correction line was created with negative quantity
+        PurchRcptLine.Reset();
+        PurchRcptLine.SetRange("Order No.", PurchaseHeader."No.");
+        PurchRcptLine.SetRange(Correction, true);
+        Assert.RecordIsNotEmpty(PurchRcptLine);
+        PurchRcptLine.FindLast();
+        Assert.AreEqual(-Quantity, PurchRcptLine.Quantity,
+            'Correction line should have negative quantity equal to original');
+
+        // [THEN] Verify Item Ledger Entry has correction entry (net quantity should be zero)
+        ItemLedgerEntry.SetRange("Item No.", Item."No.");
+        ItemLedgerEntry.SetRange("Location Code", Location.Code);
+        ItemLedgerEntry.SetRange("Entry Type", ItemLedgerEntry."Entry Type"::Output);
+        ItemLedgerEntry.CalcSums(Quantity);
+        Assert.AreEqual(0, ItemLedgerEntry.Quantity,
+            'Net Item Ledger Entry quantity should be zero after undo');
+
+        // [THEN] Verify Capacity Ledger Entry has correction entry (net output should be zero)
+        CapacityLedgerEntry.SetRange("Order No.", ProductionOrder."No.");
+        CapacityLedgerEntry.SetRange("Work Center No.", WorkCenter[2]."No.");
+        CapacityLedgerEntry.CalcSums("Output Quantity");
+        Assert.AreEqual(0, CapacityLedgerEntry."Output Quantity",
+            'Net Capacity Ledger Entry output quantity should be zero after undo');
+
+        // [THEN] Verify Purchase Line quantities are restored
+        PurchaseLine.Get(PurchaseLine."Document Type", PurchaseLine."Document No.", PurchaseLine."Line No.");
+        Assert.AreEqual(0, PurchaseLine."Quantity Received",
+            'Purchase Line Quantity Received should be reset to zero after undo');
+        Assert.AreEqual(Quantity, PurchaseLine."Outstanding Quantity",
+            'Purchase Line Outstanding Quantity should be restored to original quantity');
+    end;
+
+    [Test]
+    [HandlerFunctions('ConfirmHandler')]
+    procedure UndoPurchaseReceiptFailsWhenPutAwayRegistered()
+    var
+        Item: Record Item;
+        Location: Record Location;
+        VendorLocation: Record Location;
+        MachineCenter: array[2] of Record "Machine Center";
+        ProductionOrder: Record "Production Order";
+        PurchaseHeader: Record "Purchase Header";
+        PurchaseLine: Record "Purchase Line";
+        PurchRcptLine: Record "Purch. Rcpt. Line";
+        WarehouseActivityHeader: Record "Warehouse Activity Header";
+        WarehouseReceiptHeader: Record "Warehouse Receipt Header";
+        PostedWhseReceiptHeader: Record "Posted Whse. Receipt Header";
+        WorkCenter: array[2] of Record "Work Center";
+        Vendor: Record Vendor;
+        ReceiveBin: Record Bin;
+        PutAwayBin: Record Bin;
+        Quantity: Decimal;
+    begin
+        // [SCENARIO] Undo purchase receipt fails when put-away has been registered
+        // [FEATURE] Subcontracting Warehouse Receipt - Undo validation
+
+        // [GIVEN] Complete Manufacturing Setup
+        Initialize();
+        Quantity := LibraryRandom.RandInt(10) + 5;
+
+        // [GIVEN] Create Work Centers and Machine Centers with Subcontracting
+        SubcWarehouseLibrary.CreateAndCalculateNeededWorkAndMachineCenter(WorkCenter, MachineCenter, true);
+
+        // [GIVEN] Create Item with Routing and Production BOM
+        SubcWarehouseLibrary.CreateItemForProductionIncludeRoutingAndProdBOM(Item, WorkCenter, MachineCenter);
+
+        // [GIVEN] Update BOM and Routing with Routing Link
+        SubcWarehouseLibrary.UpdateProdBomAndRoutingWithRoutingLink(Item, WorkCenter[2]."No.");
+
+        // [GIVEN] Create Location with Warehouse Handling AND Bin Mandatory
+        SubcWarehouseLibrary.CreateLocationWithWarehouseHandlingAndBins(Location, ReceiveBin, PutAwayBin);
+
+        // [GIVEN] Configure Vendor with Subcontracting Location
+        Vendor.Get(WorkCenter[2]."Subcontractor No.");
+        Vendor."Subcontr. Location Code" := Location.Code;
+        Vendor."Location Code" := LibraryWarehouse.CreateLocationWithInventoryPostingSetup(VendorLocation);
+        Vendor.Modify();
+
+        // [GIVEN] Create and Refresh Production Order
+        SubcWarehouseLibrary.CreateAndRefreshProductionOrder(
+            ProductionOrder, "Production Order Status"::Released,
+            ProductionOrder."Source Type"::Item, Item."No.", Quantity, Location.Code);
+
+        // [GIVEN] Setup Requisition Worksheet Template
+        SubcWarehouseLibrary.UpdateSubMgmtSetupWithReqWkshTemplate();
+
+        // [GIVEN] Create Subcontracting Purchase Order
+        SubcWarehouseLibrary.CreateSubcontractingOrderFromProdOrderRouting(Item."Routing No.", WorkCenter[2]."No.", PurchaseLine);
+        PurchaseHeader.Get(PurchaseLine."Document Type", PurchaseLine."Document No.");
+
+        // [GIVEN] Create and Post Warehouse Receipt
+        SubcWarehouseLibrary.CreateWarehouseReceiptFromPurchaseOrder(PurchaseHeader, WarehouseReceiptHeader);
+        SubcWarehouseLibrary.PostWarehouseReceipt(WarehouseReceiptHeader, PostedWhseReceiptHeader);
+
+        // [GIVEN] Create and Register Put-away
+        SubcWarehouseLibrary.CreatePutAwayFromPostedWhseReceipt(PostedWhseReceiptHeader, WarehouseActivityHeader);
+        LibraryWarehouse.RegisterWhseActivity(WarehouseActivityHeader);
+
+        // [WHEN] Try to Undo the Purchase Receipt Line
+        PurchRcptLine.SetRange("Order No.", PurchaseHeader."No.");
+        PurchRcptLine.SetRange("Order Line No.", PurchaseLine."Line No.");
+        PurchRcptLine.FindFirst();
+
+        // [THEN] Error is thrown because put-away is already registered
+        asserterror Codeunit.Run(Codeunit::"Undo Purchase Receipt Line", PurchRcptLine);
+        Assert.ExpectedError('because warehouse activity lines have already been created.');
+    end;
+
+    [ConfirmHandler]
+    procedure ConfirmHandler(Question: Text[1024]; var Reply: Boolean)
+    begin
+        // Always confirm operations
+        Reply := true;
+    end;
 }
