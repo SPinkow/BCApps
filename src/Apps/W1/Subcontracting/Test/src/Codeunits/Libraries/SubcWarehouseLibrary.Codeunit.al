@@ -372,14 +372,14 @@ codeunit 140008 "Subc. Warehouse Library"
     procedure CreateSubcontractingOrderFromProdOrderRouting(RoutingNo: Code[20]; WorkCenterNo: Code[20]; var PurchaseLine: Record "Purchase Line")
     var
         ProdOrderRtngLine: Record "Prod. Order Routing Line";
-        SubcontractingMgmt: Codeunit "Subc. Purchase Order Creator";
+        SubcPurchaseOrderCreator: Codeunit "Subc. Purchase Order Creator";
     begin
         ProdOrderRtngLine.SetRange("Routing No.", RoutingNo);
         ProdOrderRtngLine.SetRange(Type, ProdOrderRtngLine.Type::"Work Center");
         ProdOrderRtngLine.SetRange("Work Center No.", WorkCenterNo);
         ProdOrderRtngLine.FindFirst();
 
-        SubcontractingMgmt.CreateSubcontractingPurchaseOrderFromRoutingLine(ProdOrderRtngLine);
+        SubcPurchaseOrderCreator.CreateSubcontractingPurchaseOrderFromRoutingLine(ProdOrderRtngLine);
 
         // Find the created purchase line
         PurchaseLine.SetRange("Routing No.", RoutingNo);
