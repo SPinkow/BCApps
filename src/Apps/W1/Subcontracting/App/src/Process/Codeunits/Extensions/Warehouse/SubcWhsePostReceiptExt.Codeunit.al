@@ -168,7 +168,7 @@ codeunit 99001551 "Subc. WhsePostReceipt Ext"
             exit;
         if not PurchaseLine.IsSubcontractingLineWithLastOperation(ProdOrderLine) then
             exit;
-        if ProdOrderLine.Quantity <= WarehouseReceiptLine.Quantity then begin
+        if ProdOrderLine.Quantity < WarehouseReceiptLine.Quantity then begin
             CannotInvoiceErrorInfo.Title := QtyMismatchTitleLbl;
             CannotInvoiceErrorInfo.Message := StrSubstNo(QtyMessageLbl, WarehouseReceiptLine.Quantity, WarehouseReceiptLine.TableCaption(), ProdOrderLine."Remaining Quantity", ProdOrderLine.TableCaption(), ProdOrderLine.Quantity, WarehouseReceiptLine.Quantity);
 
